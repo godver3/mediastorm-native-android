@@ -249,6 +249,8 @@ class PlayerController(
     private var released = false
 
     init {
+        // The audio offset is per stream: this one's saved value, 0 when it has none.
+        AudioOffsetStore.activate(AudioOffsetKeys.of(session))
         // Passthrough only where the output takes it (not Bluetooth); PCM otherwise.
         val renderers = PassthroughGuard.renderersFactory(context)
             // Platform decoders first; the FFmpeg extension (TrueHD, DTS…) when none can.
@@ -276,6 +278,11 @@ class PlayerController(
         liveRetune = session.retuneLive?.let {
             LiveRetune(player, scope, session.liveSessionId, session.liveChannel, it, ::liveGaveUp, session.liveStream) { next ->
                 timeshift.value = next.timeshift
+                // A retune onto another channel plays that channel's offset; the same channel keeps it.
+                liveRetune?.channel?.id?.let { id ->
+                    val k = AudioOffsetKeys.live(id)
+                    if (k != AudioOffsetStore.key) AudioOffsetStore.activate(k)
+                }
             }
         }
         catchup = session.liveChannel?.takeIf { session.isLive && LiveCatchups.window(it) > 0 }?.let { CatchupJoin(this, it) }

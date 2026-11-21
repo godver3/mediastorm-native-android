@@ -161,11 +161,12 @@ object PlaybackCoordinator {
         AppLog.i("Recordings", "play ${recording.id} status=${recording.status}")
         if (RecordingRules.isRecording(recording)) {
             begin(request, "Starting…", live = { _, _ -> ApiClient.startRecordingHls(recording, title) }, growing = true,
-                  liveLabel = StreamInfo.recording(recording.channelName))
+                  liveLabel = StreamInfo.recording(recording.channelName), audioOffsetKey = AudioOffsetKeys.recording(recording.id))
             return
         }
         pending = PlayerSession(request, ApiClient.recordingStreamUrl(recording, title), null, reportsProgress = false,
-                                sourceLabel = StreamInfo.recording(recording.channelName))
+                                sourceLabel = StreamInfo.recording(recording.channelName),
+                                audioOffsetKey = AudioOffsetKeys.recording(recording.id))
         launchPlayer()
     }
 
@@ -186,7 +187,8 @@ object PlaybackCoordinator {
                 val archive = ApiClient.liveCatchup(channel, program)
                 AppLog.i("Catchup", "archive from ${archive.offsetSeconds}s for ${archive.durationSeconds}s")
                 pending = PlayerSession(request, ApiClient.catchupStreamUrl(archive, channel, program), null, reportsProgress = false,
-                                        sourceLabel = listOf("Catch-up", channel.name).joinToString(" · "))
+                                        sourceLabel = listOf("Catch-up", channel.name).joinToString(" · "),
+                                        audioOffsetKey = AudioOffsetKeys.live(channel.id))
                 launchPlayer()
             } catch (e: CancellationException) {
                 throw e
@@ -228,6 +230,7 @@ object PlaybackCoordinator {
         growing: Boolean = false,
         liveChannel: LiveChannel? = null,
         liveLabel: String? = null,
+        audioOffsetKey: String? = null,
         resolve: suspend () -> ResolvedStream = { error("no resolver") },
     ) {
         if (_resolving.value != null) return
@@ -242,7 +245,8 @@ object PlaybackCoordinator {
                     PlayerSession(request, stream.url, null, reportsProgress = false, liveSessionId = stream.sessionId,
                                   liveStream = stream,
                                   isLive = !growing, growingRestart = if (growing) suspend { live(false, null) } else null,
-                                  retuneLive = live.takeIf { !growing }, liveChannel = liveChannel, sourceLabel = liveLabel)
+                                  retuneLive = live.takeIf { !growing }, liveChannel = liveChannel, sourceLabel = liveLabel,
+                                  audioOffsetKey = audioOffsetKey)
                 } else {
                     val settings = async { runCatching { ApiClient.playbackSettings() }.getOrNull() }
                     val r = resolve()

@@ -66,6 +66,8 @@ data class PlayerSession(
     val localFile: Boolean = false,
     /** Also told about every progress report ([ProgressSink]): a download's local resume point and offline queue. */
     val progressSink: ProgressSink? = null,
+    /** The stream its audio offset is saved under ([AudioOffsetKeys]); null derives it. */
+    val audioOffsetKey: String? = null,
 )
 
 /** A resolved stream: its path, the server's track choice and what online subtitles match against. */
