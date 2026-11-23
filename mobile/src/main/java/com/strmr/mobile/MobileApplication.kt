@@ -51,6 +51,7 @@ class MobileApplication : Application(), ImageLoaderFactory {
         ConnectionManager.start()
         Downloads.start()
         DetailsExtras.register(DownloadDetailsExtras)
+        DetailsExtras.register(com.strmr.mobile.ui.watchtogether.DetailsWatchTogetherActions)
     }
 
     /**

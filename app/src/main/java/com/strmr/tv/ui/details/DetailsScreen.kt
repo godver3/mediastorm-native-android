@@ -99,6 +99,7 @@ fun DetailsScreen(target: DetailsTarget, openWatchState: Boolean = false, autopl
     var more by remember { mutableStateOf(false) }
     var customizingButtons by remember { mutableStateOf(false) }
     var episodeOrder by remember { mutableStateOf(false) }
+    var watchTogether by remember { mutableStateOf(false) }
     val navigator = com.strmr.tv.ui.LocalNavigator.current
     val actions = com.strmr.tv.library.TitleActions.changes
     // A long-press menu's bulk watch-state action opens the sheet once the seasons are in.
@@ -140,7 +141,7 @@ fun DetailsScreen(target: DetailsTarget, openWatchState: Boolean = false, autopl
     // header keeps its focus state under them; this one flag stops the trailer for the visit
     // instead (as the Expo page's dismissTrailerAutoPlay; it doesn't restart when they close).
     val menuOpen = picker != null || pendingSource != null || versionsFor != null || pendingVersion != null || model.playChoice != null ||
-        prequeueTracks.open || watchState || more || customizingButtons || episodeOrder || CustomListsStore.picking != null
+        prequeueTracks.open || watchState || more || watchTogether || customizingButtons || episodeOrder || CustomListsStore.picking != null
     LaunchedEffect(menuOpen) { if (menuOpen) trailer.dismiss("menu open") }
 
     fun chooseVersion(version: LibraryVersion, episode: Episode?) {
@@ -240,7 +241,13 @@ fun DetailsScreen(target: DetailsTarget, openWatchState: Boolean = false, autopl
         val order = if (model.offersOrderings) {
             DialogChoice("Episode Order: ${model.currentOrdering?.name ?: "Default"}…") { episodeOrder = true }
         } else null
-        DetailsMoreMenu(target, scope, moved, order, onCustomize = { customizingButtons = true }, onHidden = { navigator.close() }, onDismiss = { more = false })
+        val together = if (target.hasCatalogIds) DialogChoice("Watch Together…") { watchTogether = true } else null
+        DetailsMoreMenu(target, scope, moved, order, together, onCustomize = { customizingButtons = true }, onHidden = { navigator.close() }, onDismiss = { more = false })
+    }
+    if (watchTogether) {
+        com.strmr.tv.ui.watchtogether.WatchTogetherCreateDialog(
+            target, onCreated = { navigator.open(com.strmr.tv.ui.Page.WatchRoom(it)) }, onDismiss = { watchTogether = false },
+        )
     }
     if (episodeOrder) EpisodeOrderDialog(model, scope, onDismiss = { episodeOrder = false })
     if (customizingButtons) DetailsButtonsDialog(onDismiss = { customizingButtons = false })

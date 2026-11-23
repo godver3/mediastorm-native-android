@@ -22,4 +22,6 @@ sealed interface Route {
     data class SettingsPage(val key: String, val title: String) : Route
     data class RecordingDetail(val id: String) : Route
     data object RecordingRules : Route
+    /** A Watch Together room's lobby; [accountInviteId]: an invitation to this account, answered there first. */
+    data class WatchRoom(val roomId: String, val accountInviteId: String? = null) : Route
 }

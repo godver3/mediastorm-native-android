@@ -130,6 +130,11 @@ data class PlannedShelf(
             )
             is HomeSource.Hub -> HomeShelf(id, config.title, cap = cap, cards = HubCards.cards(s.links, cap))
             HomeSource.LiveFavorites -> HomeShelf(id, config.title, api.favoriteChannelCards(cap), cap)
+            HomeSource.WatchTogether -> {
+                val invitations = com.strmr.tv.watchtogether.WatchInvitations
+                if (!invitations.loaded) runCatching { invitations.refresh() }
+                HomeShelf(id, config.title, invitations.cards().take(cap), cap)
+            }
             is HomeSource.Library -> {
                 // Newest first for every source (Plex and Jellyfin default to A–Z), in the view's media type.
                 val page = api.libraryGroups(s.library.id, wanted, sort = "created", mediaType = settings.filter.mediaType)
@@ -149,8 +154,7 @@ data class PlannedShelf(
         const val FIRST_PAGE = 30
 
         /**
-         * The enabled shelves in order, minus those the app can't show yet (watch rooms) and
-         * those a kids profile doesn't get. A curated kids profile gets a row
+         * The enabled shelves in order, minus those a kids profile doesn't get. A curated kids profile gets a row
          * per allowed list instead of the open-ended ones (trending, Top 10, services).
          */
         fun plan(settings: HomeSettings, profile: Profile?): List<PlannedShelf> {

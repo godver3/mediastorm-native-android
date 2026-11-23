@@ -25,6 +25,11 @@ sealed interface HomeLink {
      * library episodes ([com.strmr.tv.ui.library.rememberLibraryOpener]). Matched ones open [Details].
      */
     data class Library(val entry: LibraryEntry) : HomeLink
+    /**
+     * A Watch Together room (the `watch-together` shelf): opens its lobby. [accountInviteId]: an
+     * invitation to this account, accepted or declined there first.
+     */
+    data class WatchRoom(val roomId: String, val accountInviteId: String? = null) : HomeLink
 }
 
 enum class HomeAction { SURPRISE, ASK_AI }

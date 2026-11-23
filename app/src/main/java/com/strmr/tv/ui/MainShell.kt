@@ -95,6 +95,8 @@ fun MainShell() {
     val home = remember { HomeState(scope) }
     LaunchedEffect(Unit) { MenuTabs.refresh(ApiClient.profileId) }
     LaunchedEffect(Unit) { WatchlistStore.refresh() }
+    // Watch Together: the profile's saved room, checked with the server (kept, cleared, or retried).
+    LaunchedEffect(Unit) { com.strmr.tv.watchtogether.WatchTogetherSession.restore(ApiClient.profileId) }
     LaunchedEffect(Unit) { ListsTabStore.refresh() }
     // A home screen row's link (now, or held from a cold start, sign-in or the profile picker).
     val navigator = LocalNavigator.current

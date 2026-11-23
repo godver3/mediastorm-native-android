@@ -63,5 +63,6 @@ fun RouteScreen(route: Route) {
         is Route.SettingsPage -> SettingsPageScreen(route.key, route.title)
         is Route.RecordingDetail -> RecordingDetailScreen(route.id)
         Route.RecordingRules -> RecordingRulesScreen()
+        is Route.WatchRoom -> com.strmr.mobile.ui.watchtogether.WatchRoomScreen(route.roomId, route.accountInviteId)
     }
 }

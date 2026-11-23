@@ -25,6 +25,7 @@ fun rememberCardOpener(onAction: (HomeAction) -> Unit = {}): (HomeCard) -> Unit 
             is HomeLink.Channel -> PlaybackCoordinator.playLive(link.channel, link.program?.title)
             is HomeLink.Library -> openLibrary(link.entry)
             is HomeLink.Action -> onAction(link.action)
+            is HomeLink.WatchRoom -> navigator.push(Route.WatchRoom(link.roomId, link.accountInviteId))
         }
     }
 }

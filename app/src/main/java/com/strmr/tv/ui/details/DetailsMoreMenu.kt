@@ -43,6 +43,8 @@ fun DetailsMoreMenu(
     moved: List<DialogChoice>,
     /** Series with alternate orderings: "Episode Order: <current>", opening its picker. */
     episodeOrder: DialogChoice? = null,
+    /** Watch Together…: start a room for this title. */
+    watchTogether: DialogChoice? = null,
     onCustomize: () -> Unit,
     onHidden: () -> Unit,
     onDismiss: () -> Unit,
@@ -54,6 +56,7 @@ fun DetailsMoreMenu(
     }
     val choices = buildList {
         addAll(moved)
+        watchTogether?.let(::add)
         if (inContinueWatching) {
             add(DialogChoice("Set Aside") { scope.launch { TitleActions.setAside(target) } })
             add(DialogChoice("Remove from Continue Watching") { scope.launch { TitleActions.hideFromContinueWatching(target) } })

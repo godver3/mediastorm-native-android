@@ -21,6 +21,8 @@ sealed interface HomeSource {
     data object LiveFavorites : HomeSource
     /** A local, Plex or Jellyfin library's newest titles. */
     data class Library(val library: com.strmr.tv.api.LibraryRef) : HomeSource
+    /** Watch Together invitations and the profile's room ([com.strmr.tv.watchtogether.WatchInvitations]). */
+    data object WatchTogether : HomeSource
 
     data class HubLink(val id: String, val name: String, val list: BrowseList, val art: String?, val logo: String?)
 
@@ -41,6 +43,7 @@ sealed interface HomeSource {
             "my-recently-aired" -> RecentlyAired(config.calendarSources)
             "dashboard" -> Dashboard
             "live-favorites" -> LiveFavorites
+            "watch-together" -> WatchTogether
             "watch-something" -> WatchSomething(settings.hasAI)
             "streaming-services" -> Services(StreamingService.resolved(config.streamingServices))
             "popular-on-server", "recently-watched" -> {

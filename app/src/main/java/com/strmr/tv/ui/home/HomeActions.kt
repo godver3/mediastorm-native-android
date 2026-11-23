@@ -71,6 +71,7 @@ fun rememberCardHandler(settings: () -> HomeSettings? = { null }): (HomeCard) ->
             is HomeLink.Channel -> PlaybackCoordinator.playLive(link.channel, link.program?.title)
             is HomeLink.Person -> navigator.open(Page.Person(link.person))
             is HomeLink.Library -> openLibrary(link.entry)
+            is HomeLink.WatchRoom -> navigator.open(Page.WatchRoom(link.roomId, link.accountInviteId))
             is HomeLink.Action -> when (link.action) {
                 HomeAction.ASK_AI -> asking = true
                 HomeAction.SURPRISE -> if (!finding) {

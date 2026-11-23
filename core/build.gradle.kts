@@ -88,6 +88,8 @@ dependencies {
     api("androidx.media3:media3-datasource-okhttp:$media3")
     api("androidx.media3:media3-ui:$media3")
     api("androidx.media3:media3-ui-compose:$media3")
+    // Watch Together's guest invite QR code (encoder only; pure Java).
+    api("com.google.zxing:core:3.5.3")
     // On-device credits detection (player/CreditsDetector): the bundled Latin text model, so it
     // works without Google Play services (Fire TV).
     api("com.google.mlkit:text-recognition:16.0.1")

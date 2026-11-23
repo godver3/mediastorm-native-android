@@ -90,6 +90,11 @@ private fun HomeContent(entry: HomeEntry, padding: PaddingValues) {
         }
     }
     LaunchedEffect(sessionsEnded) { if (sessionsEnded > 0) store.reloadPlaybackRows() }
+    // Watch Together: invitations every 15 s while Home is on screen; the row follows changes.
+    val activeRoom by com.strmr.tv.watchtogether.WatchTogetherSession.active.collectAsState()
+    LaunchedEffect(activeRoom) { com.strmr.tv.watchtogether.WatchInvitations.poll { true } }
+    val invitations = com.strmr.tv.watchtogether.WatchInvitations.version
+    LaunchedEffect(invitations) { if (invitations > 0) store.reloadWatchTogetherRow() }
     LaunchedEffect(wakes) { if (wakes > 0) store.refreshIfStale() }
     LaunchedEffect(Unit) {
         while (true) {

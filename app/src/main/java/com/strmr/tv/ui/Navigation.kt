@@ -65,6 +65,8 @@ sealed interface Page {
     data object SportsPreferences : Page
     /** An unmatched show's library episodes (it has no details page). */
     data class LibraryShow(val entry: LibraryEntry) : Page
+    /** A Watch Together room's lobby; [accountInviteId]: an invitation to this account, answered there first. */
+    data class WatchRoom(val roomId: String, val accountInviteId: String? = null) : Page
 }
 
 /** Opens pages over the current screen. */
@@ -143,6 +145,7 @@ fun PageStack(content: @Composable () -> Unit) {
                     is Page.SportsCompetition -> SportsCompetitionScreen(page.sport, page.league)
                     Page.SportsPreferences -> SportsPreferencesScreen()
                     is Page.LibraryShow -> LibraryShowScreen(page.entry)
+                    is Page.WatchRoom -> com.strmr.tv.ui.watchtogether.WatchRoomScreen(page.roomId, page.accountInviteId)
                 }
                 if (index == stack.lastIndex) PickingHost()
             }

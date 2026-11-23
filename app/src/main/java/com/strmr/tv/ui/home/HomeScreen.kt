@@ -58,6 +58,8 @@ import com.strmr.tv.ui.ContentMargin
 import com.strmr.tv.ui.LocalNavigator
 import com.strmr.tv.ui.MessageDialog
 import com.strmr.tv.ui.TitleMenu
+import com.strmr.tv.watchtogether.WatchInvitations
+import com.strmr.tv.watchtogether.WatchTogetherSession
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.filter
@@ -94,6 +96,12 @@ fun HomeScreen(home: HomeState, tabsFocused: () -> Boolean = { false }) {
             current.refreshIfStale()
         }
     }
+    // Watch Together: invitations every 15 s while Home is on screen; the row follows changes.
+    val navigator = LocalNavigator.current
+    val activeRoom by WatchTogetherSession.active.collectAsState()
+    LaunchedEffect(activeRoom) { WatchInvitations.poll { !navigator.isCovered } }
+    val invitations = WatchInvitations.version
+    LaunchedEffect(invitations) { if (invitations > 0) current.reloadWatchTogetherRow() }
     // A new view (or layout) starts at the top with fresh focus memory and its own hero; one
     // shown before comes back with the card left focused.
     val topCarousel = HomeLayoutStore.topCarousel

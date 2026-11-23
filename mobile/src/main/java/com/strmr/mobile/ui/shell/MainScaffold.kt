@@ -56,6 +56,8 @@ fun MainScaffold() {
 
     LaunchedEffect(Unit) { MenuTabs.refresh(ApiClient.profileId) }
     LaunchedEffect(Unit) { WatchlistStore.refresh() }
+    // Watch Together: the profile's saved room, checked with the server (kept, cleared, or retried).
+    LaunchedEffect(profile?.id) { com.strmr.tv.watchtogether.WatchTogetherSession.restore(ApiClient.profileId) }
     LaunchedEffect(Unit) { ListsTabStore.refresh() }
     LaunchedEffect(Unit) { runCatching { CustomListsStore.refresh() } }
     LaunchedEffect(Unit) { runCatching { BadgeSettings.refresh() } }
@@ -78,6 +80,7 @@ fun MainScaffold() {
         com.strmr.mobile.ui.components.TitleMenuHost()
         com.strmr.mobile.ui.settings.UpdatePrompt()
         com.strmr.mobile.ui.cast.CastHost()
+        com.strmr.mobile.ui.watchtogether.WatchTogetherHost()
         if (compact) {
             Scaffold(
                 bottomBar = {

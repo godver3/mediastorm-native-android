@@ -161,6 +161,12 @@ class HomeStore(private val scope: CoroutineScope, val view: String = HomeViews.
         loadRows(plan.filter { it.source == HomeSource.Watchlist }, generation)
     }
 
+    /** Reloads the Watch Together row (its invitations changed). */
+    suspend fun reloadWatchTogetherRow() {
+        if (settings == null || loadsRunning > 0) return
+        loadRows(plan.filter { it.source == HomeSource.WatchTogether }, generation)
+    }
+
     /** Reloads the Continue Watching row (this device's upcoming-episodes choice changed). */
     suspend fun reloadContinueWatchingRow() {
         if (settings == null || loadsRunning > 0) return
