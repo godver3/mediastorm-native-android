@@ -55,7 +55,8 @@ fun WatchRoomScreen(roomId: String, accountInviteId: String?) {
     val room = model.room
     BackHandler(enabled = room != null && !model.ended) { confirmExit = true }
 
-    PageScaffold("Watch Together", showBack = true) { padding ->
+    // The top bar's back arrow behaves as system Back: a running room asks to end or leave first.
+    PageScaffold("Watch Together", showBack = true, onBack = { if (room != null && !model.ended) confirmExit = true else navigator.pop() }) { padding ->
         LazyColumn(
             Modifier.fillMaxWidth(),
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = padding.calculateTopPadding() + 8.dp, bottom = 32.dp),

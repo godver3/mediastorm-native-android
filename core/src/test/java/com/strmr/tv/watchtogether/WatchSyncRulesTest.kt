@@ -44,6 +44,36 @@ class WatchSyncRulesTest {
         assertEquals(60.0, WatchSyncRules.expected(playing, 10_000), 0.0)
     }
 
+    @Test fun noLocalReportsInTheBackgroundOrJustAfter() {
+        assertFalse("backgrounded", WatchSyncRules.reportsLocal(foreground = false, nowMs = 10_000, suppressUntilMs = 0))
+        // Back in the foreground at 10 s: suppressed for 1.5 s while the room's state is re-applied.
+        val until = 10_000 + WatchSyncRules.SUPPRESS_AFTER_REMOTE_MS
+        assertFalse(WatchSyncRules.reportsLocal(true, 10_500, until))
+        assertTrue(WatchSyncRules.reportsLocal(true, 11_500, until))
+    }
+
+    @Test fun closingIsNeverReported() {
+        assertFalse(WatchSyncRules.reportsLocal(foreground = true, nowMs = 10_000, suppressUntilMs = 0, closing = true))
+        assertTrue(WatchSyncRules.reportsLocal(foreground = true, nowMs = 10_000, suppressUntilMs = 0, closing = false))
+    }
+
+    @Test fun hostSeedsItsResumeOnlyOnTheFirstStart() {
+        assertEquals(600.0, WatchSyncRules.hostSeedPosition(true, firstOpen = true, roomPosition = 0.0, ownResume = 600.0), 0.0)
+        assertEquals("rejoin", 0.0, WatchSyncRules.hostSeedPosition(true, firstOpen = false, roomPosition = 0.0, ownResume = 600.0), 0.0)
+        assertEquals("room already moved", 0.0, WatchSyncRules.hostSeedPosition(true, true, roomPosition = 900.0, ownResume = 600.0), 0.0)
+        assertEquals("guest", 0.0, WatchSyncRules.hostSeedPosition(false, true, 0.0, 600.0), 0.0)
+    }
+
+    @Test fun presenceShowsAfterChangesAndWhileWaitingOrBuffering() {
+        val m = WatchRoomMember("a", joined = true, present = true)
+        val calm = WatchRoom(id = "r", status = WatchRoomStatus.PLAYING, members = listOf(m))
+        assertTrue(WatchSyncRules.presenceVisible(calm, changedAtMs = 0, nowMs = 7_000))
+        assertFalse(WatchSyncRules.presenceVisible(calm, 0, 9_000))
+        assertTrue(WatchSyncRules.presenceVisible(calm.copy(waitingForReady = true), 0, 60_000))
+        assertTrue(WatchSyncRules.presenceVisible(calm.copy(members = listOf(m.copy(buffering = true))), 0, 60_000))
+        assertFalse(WatchSyncRules.presenceKey(calm) == WatchSyncRules.presenceKey(calm.copy(members = listOf(m.copy(ready = true)))))
+    }
+
     @Test fun buffersOnlyWhenThePlayheadIsStuck() {
         assertFalse(WatchSyncRules.sustainedBuffering(true, false, null, 10.0))
         assertFalse(WatchSyncRules.sustainedBuffering(true, false, 10.0, 14.0))

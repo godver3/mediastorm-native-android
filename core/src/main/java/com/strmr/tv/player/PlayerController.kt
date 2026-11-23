@@ -120,7 +120,8 @@ class PlayerController(
     /** A live channel with provider catch-up: rewinding past what the player holds plays the archive. */
     var catchup: CatchupJoin? = null
         private set
-    val upNext: UpNext? = if (session.reportsProgress && !session.isLive) {
+    // Watch Together: a room covers one title, so no Up Next or next-episode autoplay.
+    val upNext: UpNext? = if (session.reportsProgress && !session.isLive && com.strmr.tv.watchtogether.WatchRoomSync.launchFor(session) == null) {
         UpNext(request, session.streamPath?.takeIf { !session.localFile }, scope, { videoSurface }, onSkip = { seekTo(it) }) { next ->
             report(ended = true)
             advanceTo.value = next.copy(speed = speed.value)
@@ -396,6 +397,8 @@ class PlayerController(
     /** Saves the position and lets go of the player; returns the last report, still finishing. */
     fun release(): Job? {
         released = true
+        // First: the player stopping isn't a pause for the room.
+        watchRoom?.stop()
         if (!ended.value && advanceTo.value == null) report(paused = true, closing = true)
         clock.cancel()
         online.cancel()
@@ -403,7 +406,6 @@ class PlayerController(
         thumbnails?.cancel()
         upNext?.cancel()
         autoSwitch.cancel()
-        watchRoom?.stop()
         progress.stop()
         // Each stops its server session.
         recordingHls?.release()

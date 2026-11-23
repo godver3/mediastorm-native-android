@@ -30,7 +30,7 @@ import com.strmr.tv.ui.watchtogether.memberStateColor
 import com.strmr.tv.watchtogether.WatchRoomSync
 
 /**
- * Watch Together over the video: who's watching (a dot each, top right; never focusable, so the
+ * Watch Together over the video: who's watching (a dot each, top left, clear of the clock and toasts; never focusable, so the
  * remote stays with the player) and, while the room waits for everyone's player, the
  * preparing card with who is ready.
  */
@@ -39,12 +39,14 @@ fun WatchRoomOverlays(sync: WatchRoomSync, modifier: Modifier = Modifier) {
     val room by sync.room.collectAsState()
     val current = room ?: return
     Box(modifier.fillMaxSize().focusProperties { canFocus = false }) {
-        Row(
-            Modifier.align(Alignment.TopEnd).padding(top = 28.dp, end = 40.dp)
-                .background(Color.Black.copy(alpha = 0.45f), RoundedCornerShape(20.dp)).padding(horizontal = 10.dp, vertical = 6.dp),
-            horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically,
-        ) {
-            current.members.filter { it.joined }.forEach { MemberDot(it, 22) }
+        AnimatedVisibility(com.strmr.tv.ui.watchtogether.rememberPresenceVisible(current), Modifier.align(Alignment.TopStart), enter = fadeIn(), exit = fadeOut()) {
+            Row(
+                Modifier.padding(top = 40.dp, start = 64.dp)
+                    .background(Color.Black.copy(alpha = 0.45f), RoundedCornerShape(20.dp)).padding(horizontal = 10.dp, vertical = 6.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically,
+            ) {
+                current.members.filter { it.joined }.forEach { MemberDot(it, 22) }
+            }
         }
         AnimatedVisibility(current.waitingForReady, Modifier.align(Alignment.Center), enter = fadeIn(), exit = fadeOut()) {
             Column(

@@ -46,7 +46,11 @@ class WatchRoomSync private constructor(private val c: PlayerController, private
     private var ticks = 0
     private var heartbeatPosition: Double? = null
     private var sourceBound = false
+    /** The app was in the background: on return the room's state is applied again, whatever its revision. */
+    private var wasBackground = false
     private val jobs = mutableListOf<Job>()
+    /** The player is closing: nothing more is reported. */
+    @Volatile private var closing = false
 
     private val player get() = c.player
     private val position: Double get() = player.currentPosition.coerceAtLeast(0) / 1000.0
@@ -59,6 +63,16 @@ class WatchRoomSync private constructor(private val c: PlayerController, private
         AppLog.i(LOG, "syncing ${c.request.title.titleId} with room $roomId (host=${launch.isHost})")
         jobs += c.scope.launch {
             while (isActive && !_ended.value) {
+                if (!AppForeground.visible) {
+                    wasBackground = true
+                } else if (wasBackground) {
+                    // Back from the background: anything the player did there (a phone pauses
+                    // itself) isn't reported; the room's current state is applied instead.
+                    wasBackground = false
+                    suppressUntil = System.currentTimeMillis() + WatchSyncRules.SUPPRESS_AFTER_REMOTE_MS
+                    lastRevision = Long.MIN_VALUE
+                    AppLog.i(LOG, "back in the foreground: re-applying the room's state")
+                }
                 if (active) poll()
                 delay(POLL_MS)
             }
@@ -85,7 +99,8 @@ class WatchRoomSync private constructor(private val c: PlayerController, private
                 _room.value = null
                 return
             }
-            val first = lastRevision < 0
+            if (closing) return
+            val first = lastRevision == -1L
             if (WatchSyncRules.seedsHostResume(first, launch.isHost, launch.resumePosition, room)) {
                 AppLog.i(LOG, "seeding host resume ${launch.resumePosition}s (room at ${room.position}s)")
                 room = ApiClient.updateWatchRoomState(
@@ -118,7 +133,12 @@ class WatchRoomSync private constructor(private val c: PlayerController, private
 
     private fun checkLocal() {
         val now = System.currentTimeMillis()
-        if (now < suppressUntil || lastRevision < 0) return
+        if (!AppForeground.visible) wasBackground = true
+        if (wasBackground || lastRevision < 0 || !WatchSyncRules.reportsLocal(AppForeground.visible, now, suppressUntil, closing)) {
+            // Keep the snapshot current, so nothing done meanwhile reads as a change later.
+            local = LocalPlayback(paused, position, now)
+            return
+        }
         val isPaused = paused
         val at = position
         val changed = WatchSyncRules.localChange(local, isPaused, at, now)
@@ -220,6 +240,7 @@ class WatchRoomSync private constructor(private val c: PlayerController, private
 
     /** The player closed: stop, and withdraw ready if the room was still waiting on it. */
     fun stop() {
+        closing = true
         jobs.forEach { it.cancel() }
         jobs.clear()
         if (waitingForReady && readinessReported && !_ended.value) {
@@ -239,11 +260,16 @@ class WatchRoomSync private constructor(private val c: PlayerController, private
          * ([WatchTogetherSession.launch]); null otherwise (live TV, trailers, anything else).
          */
         fun attach(controller: PlayerController): WatchRoomSync? {
-            val launch = WatchTogetherSession.launch ?: return null
-            val session = controller.session
-            if (session.isLive || !session.reportsProgress || launch.profileId != ApiClient.profileId) return null
-            if (!WatchRoomTitle.matches(launch.itemId, controller.request.title.titleId)) return null
+            val launch = launchFor(controller.session) ?: return null
             return WatchRoomSync(controller, launch).also { it.start() }
+        }
+
+        /** The room [session] syncs with, if any (Up Next stays off for it: a room covers one title). */
+        fun launchFor(session: com.strmr.tv.player.PlayerSession): WatchRoomLaunch? {
+            val launch = WatchTogetherSession.launch ?: return null
+            if (session.isLive || !session.reportsProgress || launch.profileId != ApiClient.profileId) return null
+            if (!WatchRoomTitle.matches(launch.itemId, session.request.title.titleId)) return null
+            return launch
         }
     }
 }

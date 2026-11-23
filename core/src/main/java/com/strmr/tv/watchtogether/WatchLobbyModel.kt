@@ -46,6 +46,8 @@ class WatchLobbyModel(
     var playbackOpened by mutableStateOf(false)
         private set
 
+    /** This lobby opened the player before: a rejoin never seeds the host's resume point again. */
+    private var openedBefore = false
     private var accepted = accountInviteId == null
     private var joined = false
     private var terminal = false
@@ -239,14 +241,16 @@ class WatchLobbyModel(
                 val primary = model.primary ?: throw IllegalStateException(model.loadError ?: "Nothing to play for this title.")
                 val host = current.isHost(profileId)
                 val own = (primary.start as? StartPoint.Seconds)?.value ?: 0.0
+                val seed = WatchSyncRules.hostSeedPosition(host, firstOpen = !openedBefore, roomPosition = current.position, ownResume = own)
+                openedBefore = true
                 val start = when {
+                    seed > 0 -> StartPoint.Seconds(seed)
                     current.position >= 1.0 -> StartPoint.Seconds(current.position)
-                    host && own > 0 -> StartPoint.Seconds(own)
                     else -> null
                 }
                 WatchTogetherSession.launch = WatchRoomLaunch(
                     roomId, profileId, current.itemId, isHost = host,
-                    resumePosition = if (host && current.position < 1.0) own else 0.0,
+                    resumePosition = seed,
                 )
                 AppLog.i(LOG, "opening playback for room $roomId at ${(start as? StartPoint.Seconds)?.value ?: 0.0}s (host=$host)")
                 PlaybackCoordinator.play(model.request(primary.episode, start))

@@ -37,12 +37,14 @@ fun WatchRoomOverlays(sync: WatchRoomSync, modifier: Modifier = Modifier) {
     val room by sync.room.collectAsState()
     val current = room ?: return
     Box(modifier.fillMaxSize().safeDrawingPadding()) {
-        Row(
-            Modifier.align(Alignment.TopEnd).padding(top = 64.dp, end = 12.dp)
-                .background(Color.Black.copy(alpha = 0.45f), RoundedCornerShape(16.dp)).padding(horizontal = 8.dp, vertical = 4.dp),
-            horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically,
-        ) {
-            current.members.filter { it.joined }.forEach { MemberDot(it, 20) }
+        AnimatedVisibility(com.strmr.tv.ui.watchtogether.rememberPresenceVisible(current), Modifier.align(Alignment.TopEnd), enter = fadeIn(), exit = fadeOut()) {
+            Row(
+                Modifier.padding(top = 64.dp, end = 12.dp)
+                    .background(Color.Black.copy(alpha = 0.45f), RoundedCornerShape(16.dp)).padding(horizontal = 8.dp, vertical = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically,
+            ) {
+                current.members.filter { it.joined }.forEach { MemberDot(it, 20) }
+            }
         }
         AnimatedVisibility(current.waitingForReady, Modifier.align(Alignment.Center), enter = fadeIn(), exit = fadeOut()) {
             Column(

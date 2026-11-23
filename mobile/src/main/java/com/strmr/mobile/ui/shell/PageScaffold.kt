@@ -30,12 +30,14 @@ fun PageScaffold(
     large: Boolean = !showBack,
     actions: @Composable RowScope.() -> Unit = {},
     floatingActionButton: @Composable () -> Unit = {},
+    /** What the back arrow does; null pops the page. */
+    onBack: (() -> Unit)? = null,
     content: @Composable (PaddingValues) -> Unit,
 ) {
     val navigator = LocalNavigator.current
     val navigation: @Composable () -> Unit = {
         if (showBack) {
-            IconButton(onClick = { navigator.pop() }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") }
+            IconButton(onClick = { onBack?.invoke() ?: navigator.pop() }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") }
         }
     }
     val behavior = if (large) TopAppBarDefaults.exitUntilCollapsedScrollBehavior()

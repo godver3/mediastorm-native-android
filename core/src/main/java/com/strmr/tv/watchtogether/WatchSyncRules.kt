@@ -19,6 +19,36 @@ object WatchSyncRules {
     /** The playhead moving less than this between heartbeats while playing counts as stuck. */
     const val MIN_PROGRESS = 0.75
 
+    /**
+     * Local changes aren't reported while the app is in the background (a phone pausing itself
+     * there isn't the viewer's choice) nor until [suppressUntilMs] (a remote apply's echo, or the
+     * moments after coming back while the room's state is re-applied), nor once the player is
+     * closing (its stop isn't a pause for the room).
+     */
+    fun reportsLocal(foreground: Boolean, nowMs: Long, suppressUntilMs: Long, closing: Boolean = false) =
+        !closing && foreground && nowMs >= suppressUntilMs
+
+    /**
+     * The resume point the host's player seeds into the room: only when the host opens the
+     * player for the first time and the room is still at its start. A rejoin plays the room's
+     * position as everyone else does (never a stale lobby position or the host's old resume).
+     */
+    fun hostSeedPosition(isHost: Boolean, firstOpen: Boolean, roomPosition: Double, ownResume: Double): Double =
+        if (isHost && firstOpen && roomPosition < 1.0 && ownResume > 0) ownResume else 0.0
+
+    /**
+     * The presence strip shows for [PRESENCE_SHOW_MS] after who's there (or their state) changes,
+     * and stays while the room waits for players or anyone is buffering.
+     */
+    fun presenceVisible(room: WatchRoom, changedAtMs: Long, nowMs: Long): Boolean =
+        room.waitingForReady || room.members.any { it.joined && it.buffering } || nowMs - changedAtMs < PRESENCE_SHOW_MS
+
+    /** What the presence strip shows: a change restarts its timer. */
+    fun presenceKey(room: WatchRoom): String =
+        room.members.joinToString("|") { "${it.profileId}:${it.joined}:${it.present}:${it.ready}:${it.buffering}" } + "#" + room.status
+
+    const val PRESENCE_SHOW_MS = 8_000L
+
     /** The room wants the player paused: everyone isn't ready yet, or it isn't playing. */
     fun remotePaused(room: WatchRoom) = room.waitingForReady || room.status != WatchRoomStatus.PLAYING
 
