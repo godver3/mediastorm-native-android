@@ -91,6 +91,9 @@ class MobilePlayerActivity : ComponentActivity() {
                 val next by c.advanceTo.collectAsState()
                 val switch by c.switchTo.collectAsState()
                 LaunchedEffect(ended) { if (ended) finish() }
+                // Watch Together: the room ended, back to its lobby (the page under the player).
+                val roomEnded by androidx.compose.runtime.remember { c.watchRoom?.ended ?: kotlinx.coroutines.flow.MutableStateFlow(false) }.collectAsState()
+                LaunchedEffect(roomEnded) { if (roomEnded) finish() }
                 LaunchedEffect(Unit) { runCatching { SubtitleStyleStore.adopt(ApiClient.playbackSettings().subtitleStyle) } }
                 // Up Next: close this episode (saved as finished) and start the next over its loading art.
                 LaunchedEffect(next) {

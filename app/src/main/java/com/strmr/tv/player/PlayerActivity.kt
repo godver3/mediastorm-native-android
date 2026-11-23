@@ -69,6 +69,9 @@ class PlayerActivity : ComponentActivity() {
                 val next by c.advanceTo.collectAsState()
                 val switch by c.switchTo.collectAsState()
                 LaunchedEffect(ended) { if (ended) finish() }
+                // Watch Together: the room ended, back to its lobby (the page under the player).
+                val roomEnded by androidx.compose.runtime.remember { c.watchRoom?.ended ?: kotlinx.coroutines.flow.MutableStateFlow(false) }.collectAsState()
+                LaunchedEffect(roomEnded) { if (roomEnded) finish() }
                 LaunchedEffect(Unit) { SubtitleStyleStore.adopt(ApiClient.playbackSettings().subtitleStyle) }
                 // Up Next: close this episode (saved as finished) and start the next over its loading art.
                 LaunchedEffect(next) {
@@ -108,6 +111,7 @@ class PlayerActivity : ComponentActivity() {
                     val aspect by c.videoAspect.collectAsState()
                     // The device's subtitle style (Settings, or the Subtitles menu's Style picks), live.
                     SubtitleOverlay(cues, SubtitleStyleStore.style, aspect, Modifier.fillMaxSize())
+                    c.watchRoom?.let { WatchRoomOverlays(it) }
                     PlayerChrome(c, onExit = { finish() }, onAddScreen = { addScreen(c) }.takeIf { session.liveChannel != null })
                     SubtitleStatusToast(c, Modifier.align(androidx.compose.ui.Alignment.TopEnd))
                 }

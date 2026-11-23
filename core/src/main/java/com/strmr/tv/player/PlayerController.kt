@@ -127,6 +127,10 @@ class PlayerController(
         }
     } else null
 
+    /** Watch Together: the room this playback syncs with, when opened from a lobby; null otherwise. */
+    var watchRoom: com.strmr.tv.watchtogether.WatchRoomSync? = null
+        private set
+
     private val stallLog by lazy { StallLog(player) }
     private val healthLog: HealthLog
 
@@ -303,6 +307,7 @@ class PlayerController(
         player.prepare()
         startGate?.invoke { if (!released) player.play() }
         autoSwitch.start()
+        watchRoom = com.strmr.tv.watchtogether.WatchRoomSync.attach(this)
         AppLog.i("Player", "play ${request.displayTitle} start=${request.start?.label ?: "0"}")
         thumbnails?.start(scope) {
             val video = tracks.value.ofType(C.TRACK_TYPE_VIDEO).firstOrNull { it.selected }?.format
@@ -398,6 +403,7 @@ class PlayerController(
         thumbnails?.cancel()
         upNext?.cancel()
         autoSwitch.cancel()
+        watchRoom?.stop()
         progress.stop()
         // Each stops its server session.
         recordingHls?.release()
