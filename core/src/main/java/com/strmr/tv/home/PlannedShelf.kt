@@ -159,7 +159,7 @@ data class PlannedShelf(
          */
         fun plan(settings: HomeSettings, profile: Profile?): List<PlannedShelf> {
             val isKids = profile?.isKidsProfile == true
-            var all = applyTopShelf(settings.shelves, settings)
+            var all = applyTopShelf(withWatchTogether(settings.shelves), settings)
             if (profile != null && profile.isKidsCurated) {
                 all = (all.filterNot { it.id in notForCuratedKids } + kidsListShelves(profile.kidsAllowedLists ?: emptyList()))
                     .sortedBy { it.order ?: 0 }
@@ -194,6 +194,14 @@ data class PlannedShelf(
             }
             TopShelfMode.STANDARD -> shelves
         }
+
+        /**
+         * Watch Together leads Home when the config predates it (as `ensureHomeShelfConfig` adds
+         * it); it only shows with invitations or a room. A config that has it (on or off) decides.
+         */
+        private fun withWatchTogether(shelves: List<ShelfConfig>): List<ShelfConfig> =
+            if (shelves.isEmpty() || shelves.any { it.id == "watch-together" }) shelves
+            else listOf(ShelfConfig("watch-together", "Watch Together", enabled = true, order = (shelves.minOf { it.order ?: 0 }) - 1)) + shelves
 
         /** The Expo app's `kids-list-N` shelves: MDBList rows named after the URL's last segment. */
         private fun kidsListShelves(urls: List<String>) = urls.mapIndexed { index, url ->
