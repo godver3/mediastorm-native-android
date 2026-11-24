@@ -26,7 +26,7 @@ object WatchRoomTitle {
         put("tvdbId", target.tvdbId.orEmpty())
     }
 
-    fun create(target: DetailsTarget, inviteeProfileIds: List<String>) = WatchRoomCreate(
+    fun create(target: DetailsTarget, inviteeProfileIds: List<String>, episode: WatchRoomEpisode? = null) = WatchRoomCreate(
         title = target.name,
         mediaType = mediaType(target),
         itemId = target.titleId,
@@ -34,7 +34,12 @@ object WatchRoomTitle {
         backdropUrl = target.backdropUrl ?: target.posterUrl,
         params = params(target),
         inviteeProfileIds = inviteeProfileIds,
+        episode = episode?.takeIf { !target.isMovie },
     )
+
+    /** A playing episode as the room carries it. */
+    fun episode(info: com.strmr.tv.player.PlaybackRequest.EpisodeInfo?): WatchRoomEpisode? =
+        info?.let { WatchRoomEpisode(it.season, it.episode, it.itemId, it.name) }
 
     /** The room's title as a details target; the room's own fields fill in what the params lack. */
     fun target(room: WatchRoom): DetailsTarget {

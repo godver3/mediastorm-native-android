@@ -25,6 +25,8 @@ data class WatchRoomLaunch(
     val isHost: Boolean,
     /** The host's own resume point, seeded into the room on the first snapshot (seconds; 0 for none). */
     val resumePosition: Double = 0.0,
+    /** The episode the lobby opened (its resume point is [resumePosition]); null for a movie. */
+    val episode: WatchRoomEpisode? = null,
 )
 
 /**

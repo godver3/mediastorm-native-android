@@ -35,6 +35,7 @@ import com.strmr.tv.watchtogether.WatchRoomSync
 @Composable
 fun WatchRoomOverlays(sync: WatchRoomSync, modifier: Modifier = Modifier) {
     val room by sync.room.collectAsState()
+    val switching by sync.switching.collectAsState()
     val current = room ?: return
     Box(modifier.fillMaxSize().safeDrawingPadding()) {
         AnimatedVisibility(com.strmr.tv.ui.watchtogether.rememberPresenceVisible(current), Modifier.align(Alignment.TopEnd), enter = fadeIn(), exit = fadeOut()) {
@@ -46,13 +47,13 @@ fun WatchRoomOverlays(sync: WatchRoomSync, modifier: Modifier = Modifier) {
                 current.members.filter { it.joined }.forEach { MemberDot(it, 20) }
             }
         }
-        AnimatedVisibility(current.waitingForReady, Modifier.align(Alignment.Center), enter = fadeIn(), exit = fadeOut()) {
+        AnimatedVisibility(current.waitingForReady || switching != null, Modifier.align(Alignment.Center), enter = fadeIn(), exit = fadeOut()) {
             Column(
                 Modifier.widthIn(max = 360.dp).background(Color(0xE61C1C1E), RoundedCornerShape(16.dp)).padding(20.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 val joined = current.members.filter { it.joined }
-                Text("Getting everyone ready…", style = MaterialTheme.typography.titleMedium, color = Color.White)
+                Text(switching?.let { "Switching to the host's episode, ${it.code}…" } ?: "Getting everyone ready…", style = MaterialTheme.typography.titleMedium, color = Color.White)
                 Text("${joined.count { it.ready }} of ${joined.size} ready", color = Color.White.copy(alpha = 0.7f))
                 joined.forEach { m ->
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {

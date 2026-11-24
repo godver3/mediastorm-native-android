@@ -7,7 +7,6 @@ import com.strmr.tv.api.ApiClient
 import com.strmr.tv.api.StartPoint
 import com.strmr.tv.app.AppLog
 import com.strmr.tv.player.PlaybackCoordinator
-import com.strmr.tv.ui.details.DetailsModel
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
@@ -48,6 +47,8 @@ class WatchLobbyModel(
 
     /** This lobby opened the player before: a rejoin never seeds the host's resume point again. */
     private var openedBefore = false
+    /** The room's episode when this lobby last opened the player: a new one from the host reopens it. */
+    private var openedEpisode: WatchRoomEpisode? = null
     private var accepted = accountInviteId == null
     private var joined = false
     private var terminal = false
@@ -107,7 +108,9 @@ class WatchLobbyModel(
                 } catch (e: Exception) {
                     if (e.isWatchRoomEnded) markEnded()
                 }
-                if (next.isPlaying && !playbackOpened && !PlaybackCoordinator.playerOpen) openPlayback()
+                // A guest back here (its episode ended, say) follows the host's next episode.
+                val newEpisode = next.episode != null && !next.episode.same(openedEpisode) && !next.isHost(profileId)
+                if (next.isPlaying && (!playbackOpened || newEpisode) && !PlaybackCoordinator.playerOpen) openPlayback()
             }
         } catch (e: CancellationException) {
             throw e
@@ -226,34 +229,32 @@ class WatchLobbyModel(
 
     /**
      * Opens the player on the room's title: its details are loaded for what Play would play (a
-     * series' up-next episode, a library copy), started at the room's position. The host starts
-     * at its own resume point when the room is at the start, and seeds the room with it
-     * ([WatchRoomSync]).
+     * series' up-next episode, a library copy), or the room's episode when the host shared one,
+     * started at the room's position. The host starts at its own resume point when the room is
+     * at the start, and seeds the room with it ([WatchRoomSync]).
      */
     private fun openPlayback() {
         val current = room ?: return
         playbackOpened = true
+        openedEpisode = current.episode
         scope.launch {
             try {
-                val model = DetailsModel(WatchRoomTitle.target(current))
-                model.load()
-                model.loadLibrary()
-                val primary = model.primary ?: throw IllegalStateException(model.loadError ?: "Nothing to play for this title.")
+                val prepared = WatchRoomPlayback.prepare(current)
                 val host = current.isHost(profileId)
-                val own = (primary.start as? StartPoint.Seconds)?.value ?: 0.0
-                val seed = WatchSyncRules.hostSeedPosition(host, firstOpen = !openedBefore, roomPosition = current.position, ownResume = own)
+                val seed = WatchSyncRules.hostSeedPosition(host, firstOpen = !openedBefore, roomPosition = current.position, ownResume = prepared.ownResume)
                 openedBefore = true
                 val start = when {
                     seed > 0 -> StartPoint.Seconds(seed)
                     current.position >= 1.0 -> StartPoint.Seconds(current.position)
                     else -> null
                 }
+                val request = prepared.request(start)
                 WatchTogetherSession.launch = WatchRoomLaunch(
                     roomId, profileId, current.itemId, isHost = host,
-                    resumePosition = seed,
+                    resumePosition = seed, episode = WatchRoomTitle.episode(request.episode),
                 )
-                AppLog.i(LOG, "opening playback for room $roomId at ${(start as? StartPoint.Seconds)?.value ?: 0.0}s (host=$host)")
-                PlaybackCoordinator.play(model.request(primary.episode, start))
+                AppLog.i(LOG, "opening playback for room $roomId ${request.episode?.code ?: ""} at ${(start as? StartPoint.Seconds)?.value ?: 0.0}s (host=$host)")
+                PlaybackCoordinator.play(request)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {

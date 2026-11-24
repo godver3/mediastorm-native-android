@@ -80,6 +80,34 @@ object WatchSyncRules {
         return position - previousPosition < MIN_PROGRESS
     }
 
+    // Episodes: the host's episode is the room's; everyone else follows it.
+
+    /**
+     * The host plays an episode the room doesn't name (it advanced, or the room predates
+     * episodes): post it, which has the server wait for everyone to load it.
+     */
+    fun hostAnnouncesEpisode(isHost: Boolean, room: WatchRoom, playing: WatchRoomEpisode?): Boolean =
+        isHost && playing != null && !playing.same(room.episode)
+
+    /**
+     * The episode a guest switches to: the room names one and it isn't the one playing. Null
+     * for the host, a room without an episode (as before) and the same episode.
+     */
+    fun guestSwitchTarget(isHost: Boolean, room: WatchRoom, playing: WatchRoomEpisode?): WatchRoomEpisode? {
+        val target = room.episode ?: return null
+        return if (isHost || target.same(playing)) null else target
+    }
+
+    /** Up Next (and next-episode autoplay) in a room: the host's only; guests follow it. */
+    fun upNextAllowed(inRoom: Boolean, isHost: Boolean) = !inRoom || isHost
+
+    /**
+     * Where the host's announced episode starts: its own seeded resume point when it is the
+     * episode the lobby opened, else where the player is (an advance: the start).
+     */
+    fun hostEpisodePosition(playing: WatchRoomEpisode, launchEpisode: WatchRoomEpisode?, seed: Double, position: Double): Double =
+        if (seed > 0 && playing.same(launchEpisode)) seed else position
+
     /** The params the server keeps for web guests (handlers/watch_party.go `watchPartySourceAllowedParams`). */
     val SOURCE_PARAMS = setOf(
         "mediaType", "title", "seriesTitle", "displayName", "year", "seasonNumber", "episodeNumber", "episodeName",

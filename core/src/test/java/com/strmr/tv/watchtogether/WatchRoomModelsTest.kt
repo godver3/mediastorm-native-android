@@ -99,6 +99,31 @@ class WatchRoomModelsTest {
         assertEquals("Breaking Bad", params["title"]!!.jsonPrimitive.content)
     }
 
+    @Test fun createBodyCarriesTheOptionalEpisode() {
+        val target = DetailsTarget("tvdb:series:81189", "Breaking Bad", isMovie = false, tvdbId = "81189")
+        val body = WatchRoomTitle.create(target, emptyList(), WatchRoomEpisode(2, 3, "tvdb:episode:9", "Bit by a Dead Bee"))
+            .body(clientId = "c")
+        val server = setOf("title", "mediaType", "itemId", "posterUrl", "backdropUrl", "params", "inviteeProfileIds", "clientId",
+                           "capabilities", "episode")
+        assertTrue(server.containsAll(body.keys))
+        val ep = body["episode"]!!.jsonObject
+        assertEquals(setOf("seasonNumber", "episodeNumber", "episodeId", "title"), ep.keys)
+        assertEquals("2", ep["seasonNumber"]!!.jsonPrimitive.content)
+        assertEquals("3", ep["episodeNumber"]!!.jsonPrimitive.content)
+        // A movie never carries one; blank optional fields are left out.
+        val movie = DetailsTarget("tmdb:movie:1", "M", isMovie = true)
+        assertNull(WatchRoomTitle.create(movie, emptyList(), WatchRoomEpisode(1, 1)).body("c")["episode"])
+        assertEquals(setOf("seasonNumber", "episodeNumber"), WatchRoomEpisode(1, 2, "", " ").body().keys)
+    }
+
+    @Test fun decodesTheRoomEpisodeAndItsAbsence() {
+        val room = ApiJson.decodeFromString<WatchRoom>(
+            """{"id":"wr_1","itemId":"tvdb:series:1","episode":{"seasonNumber":1,"episodeNumber":4,"title":"Cancer Man"}}""",
+        )
+        assertEquals(WatchRoomEpisode(1, 4, title = "Cancer Man"), room.episode)
+        assertNull(ApiJson.decodeFromString<WatchRoom>(roomJson).episode)
+    }
+
     @Test fun titleRoundTripsThroughRoomParams() {
         val target = DetailsTarget("tmdb:movie:693134", "Dune: Part Two", isMovie = true, year = 2024, tmdbId = "693134",
                                    imdbId = "tt15239678", backdropUrl = "https://bd", posterUrl = "https://p", overview = "Paul")

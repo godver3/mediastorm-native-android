@@ -10,12 +10,13 @@ object WatchTogetherStart {
     /**
      * Creates a room for [target] with [inviteeProfileIds] (this account's profiles) and, when
      * [accountUsername] is set, invites that account. The room is remembered as this profile's.
+     * [episode]: created from a specific episode, which everyone then plays.
      * Succeeds with the room and a warning when only the account invite failed.
      */
-    suspend fun create(target: DetailsTarget, inviteeProfileIds: List<String>, accountUsername: String): Result<Pair<WatchRoom, String?>> {
+    suspend fun create(target: DetailsTarget, inviteeProfileIds: List<String>, accountUsername: String, episode: WatchRoomEpisode? = null): Result<Pair<WatchRoom, String?>> {
         val profileId = ApiClient.profileId
         return try {
-            val room = ApiClient.createWatchRoom(profileId, WatchRoomTitle.create(target, inviteeProfileIds))
+            val room = ApiClient.createWatchRoom(profileId, WatchRoomTitle.create(target, inviteeProfileIds, episode))
             WatchTogetherSession.remember(profileId, room)
             AppLog.i("WatchTogether", "created room ${room.id} for ${target.titleId} (${inviteeProfileIds.size} profiles)")
             val warning = accountUsername.trim().takeIf { it.isNotEmpty() }?.let { name ->

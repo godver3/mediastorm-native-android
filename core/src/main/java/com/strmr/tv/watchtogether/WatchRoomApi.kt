@@ -39,11 +39,13 @@ suspend fun ApiClient.setWatchRoomReady(profileId: String, roomId: String, ready
 /** `POST state`; a stale [expectedRevision] answers 409 ([isRevisionConflict]). */
 suspend fun ApiClient.updateWatchRoomState(
     profileId: String, roomId: String, status: String, position: Double, duration: Double? = null, expectedRevision: Long? = null,
+    episode: WatchRoomEpisode? = null,
 ): WatchRoom = send("POST", "${room(profileId, roomId)}/state", promptOnLock = false, timeoutMs = 15_000, body = buildJsonObject {
     put("status", status)
     put("position", position)
     duration?.takeIf { it > 0 }?.let { put("duration", it) }
     expectedRevision?.takeIf { it >= 0 }?.let { put("expectedRevision", it) }
+    episode?.let { put("episode", it.body()) }
 })
 
 suspend fun ApiClient.heartbeatWatchRoom(profileId: String, roomId: String, buffering: Boolean = false) {
@@ -115,6 +117,8 @@ data class WatchRoomCreate(
     val backdropUrl: String?,
     val params: Map<String, String>,
     val inviteeProfileIds: List<String>,
+    /** The episode the room starts on (created from a specific episode). */
+    val episode: WatchRoomEpisode? = null,
 ) {
     fun body(clientId: String = Config.clientId): JsonObject = buildJsonObject {
         put("title", title)
@@ -126,7 +130,16 @@ data class WatchRoomCreate(
         putJsonArray("inviteeProfileIds") { inviteeProfileIds.forEach { add(kotlinx.serialization.json.JsonPrimitive(it)) } }
         put("clientId", clientId)
         put("capabilities", nativeCapabilities())
+        episode?.let { put("episode", it.body()) }
     }
+}
+
+/** The server's `WatchRoomEpisode` (strict decoder: only its fields, blanks left out). */
+fun WatchRoomEpisode.body(): JsonObject = buildJsonObject {
+    put("seasonNumber", seasonNumber)
+    put("episodeNumber", episodeNumber)
+    episodeId?.takeIf { it.isNotBlank() }?.let { put("episodeId", it) }
+    title?.takeIf { it.isNotBlank() }?.let { put("title", it) }
 }
 
 /** A stale `expectedRevision`: another member changed the state first; the next poll has it. */

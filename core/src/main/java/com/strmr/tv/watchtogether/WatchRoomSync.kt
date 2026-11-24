@@ -17,7 +17,10 @@ import kotlinx.coroutines.launch
 /**
  * Keeps one playback in step with its Watch Together room (the Expo `useWatchRoomPlaybackSync`):
  * - polls the room every 2 s and applies each new revision (seek when more than 1.5 s off,
- *   then play or pause), ignoring snapshots for another title (an episode change in progress);
+ *   then play or pause), ignoring snapshots for another title;
+ * - follows the host's episode: the host posts the episode it plays (a new one after Up Next),
+ *   and a guest playing another one switches to it, resolved as the lobby would, at the room's
+ *   position (the server then waits for everyone to load it);
  * - reports ready once the player has loaded while the room waits for everyone, and stays paused;
  * - checks the player every 1 s for a local pause toggle or seek and posts it at once with the
  *   revision it was based on (409: someone else got there first, taken from the next poll);
@@ -34,6 +37,9 @@ class WatchRoomSync private constructor(private val c: PlayerController, private
     private val _room = MutableStateFlow<WatchRoom?>(null)
     /** The room's latest snapshot for this title, for the presence and preparing overlays. */
     val room: StateFlow<WatchRoom?> = _room
+    private val _switching = MutableStateFlow<WatchRoomEpisode?>(null)
+    /** Guest: the host's episode this player is closing to switch to (the preparing overlay shows it). */
+    val switching: StateFlow<WatchRoomEpisode?> = _switching
     private val _ended = MutableStateFlow(false)
     /** The room ended: the player closes, back to the lobby. */
     val ended: StateFlow<Boolean> = _ended
@@ -57,6 +63,8 @@ class WatchRoomSync private constructor(private val c: PlayerController, private
     private val duration: Double get() = c.duration.value.coerceAtLeast(0) / 1000.0
     private val paused: Boolean get() = !player.playWhenReady
     private val loaded: Boolean get() = player.playbackState == Player.STATE_READY || c.duration.value > 0
+    /** The episode this player plays, as the room carries it; null for a movie. */
+    private val playingEpisode: WatchRoomEpisode? = WatchRoomTitle.episode(c.request.episode)
     private val active: Boolean get() = AppForeground.visible && !_ended.value
 
     private fun start() {
@@ -89,23 +97,39 @@ class WatchRoomSync private constructor(private val c: PlayerController, private
         try {
             var room = ApiClient.watchRoom(profileId, roomId)
             if (room.ended) return end(room)
+            if (_switching.value != null || closing) return
+            if (!WatchRoomTitle.matches(room.itemId, c.request.title.titleId)) {
+                _room.value = null
+                return
+            }
+            WatchSyncRules.guestSwitchTarget(launch.isHost, room, playingEpisode)?.let { target ->
+                _room.value = room
+                return switchTo(room, target)
+            }
+            if (WatchSyncRules.hostAnnouncesEpisode(launch.isHost, room, playingEpisode)) {
+                // Before reporting ready: the server resets everyone's ready on an episode change.
+                val ep = playingEpisode!!
+                val at = WatchSyncRules.hostEpisodePosition(ep, launch.episode, launch.resumePosition, position)
+                AppLog.i(LOG, "host plays ${ep.code} (room ${room.episode?.code ?: "none"}): posting it at ${at}s")
+                room = ApiClient.updateWatchRoomState(
+                    profileId, roomId, if (room.status == WatchRoomStatus.PAUSED) WatchRoomStatus.PAUSED else WatchRoomStatus.PLAYING,
+                    at, duration.takeIf { it > 0 }, room.revision, ep,
+                )
+                readinessReported = false
+            }
             if (room.waitingForReady && !readinessReported && loaded) {
                 room = ApiClient.setWatchRoomReady(profileId, roomId, true)
                 readinessReported = true
                 AppLog.i(LOG, "player ready in room $roomId")
             }
             waitingForReady = room.waitingForReady
-            if (!WatchRoomTitle.matches(room.itemId, c.request.title.titleId)) {
-                _room.value = null
-                return
-            }
-            if (closing) return
             val first = lastRevision == -1L
-            if (WatchSyncRules.seedsHostResume(first, launch.isHost, launch.resumePosition, room)) {
+            val seedApplies = playingEpisode == null || playingEpisode.same(launch.episode)
+            if (seedApplies && WatchSyncRules.seedsHostResume(first, launch.isHost, launch.resumePosition, room)) {
                 AppLog.i(LOG, "seeding host resume ${launch.resumePosition}s (room at ${room.position}s)")
                 room = ApiClient.updateWatchRoomState(
                     profileId, roomId, if (room.status == WatchRoomStatus.PAUSED) WatchRoomStatus.PAUSED else WatchRoomStatus.PLAYING,
-                    launch.resumePosition, maxOf(room.duration, duration), room.revision,
+                    launch.resumePosition, maxOf(room.duration, duration), room.revision, episodeForPost(),
                 )
             }
             _room.value = room
@@ -131,6 +155,41 @@ class WatchRoomSync private constructor(private val c: PlayerController, private
         local = LocalPlayback(pause, room.position, System.currentTimeMillis())
     }
 
+    /** The host's state posts carry the episode it plays (guests' never: only the host may change it). */
+    private fun episodeForPost(): WatchRoomEpisode? = playingEpisode?.takeIf { launch.isHost }
+
+    /**
+     * Guest: the room plays another episode (the host's): pause here, resolve that episode as
+     * the lobby would and hand it to the player screen, which closes this one and starts it at
+     * the room's position. Its own sync then reports ready.
+     */
+    private suspend fun switchTo(room: WatchRoom, target: WatchRoomEpisode) {
+        _switching.value = target
+        suppressUntil = Long.MAX_VALUE
+        player.playWhenReady = false
+        AppLog.i(LOG, "room plays ${target.code} (here ${playingEpisode?.code ?: "none"}): switching")
+        try {
+            val prepared = WatchRoomPlayback.prepare(room, target)
+            val start = room.position.takeIf { it >= 1.0 }?.let { com.strmr.tv.api.StartPoint.Seconds(it) }
+            if (closing) return
+            c.advanceTo.value = prepared.request(start).copy(speed = c.speed.value)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            AppLog.w(LOG, "switching to ${target.code} failed: ${e.message}")
+            // The next poll tries again.
+            _switching.value = null
+            suppressUntil = 0L
+            lastRevision = Long.MIN_VALUE
+        }
+    }
+
+    /**
+     * Guest at the end of an episode in a room that follows the host's: stay (paused at the
+     * end) for the host's next one instead of closing. The host's own Up Next moves on.
+     */
+    fun holdsAtEnd(): Boolean = !launch.isHost && !_ended.value && playingEpisode != null && _room.value?.episode != null
+
     private fun checkLocal() {
         val now = System.currentTimeMillis()
         if (!AppForeground.visible) wasBackground = true
@@ -155,6 +214,7 @@ class WatchRoomSync private constructor(private val c: PlayerController, private
             try {
                 val room = ApiClient.updateWatchRoomState(
                     profileId, roomId, if (isPaused) WatchRoomStatus.PAUSED else WatchRoomStatus.PLAYING, at, duration, lastRevision,
+                    episodeForPost(),
                 )
                 lastRevision = room.revision
                 _room.value = room
@@ -264,7 +324,7 @@ class WatchRoomSync private constructor(private val c: PlayerController, private
             return WatchRoomSync(controller, launch).also { it.start() }
         }
 
-        /** The room [session] syncs with, if any (Up Next stays off for it: a room covers one title). */
+        /** The room [session] syncs with, if any (Up Next is the host's only: guests follow its episode). */
         fun launchFor(session: com.strmr.tv.player.PlayerSession): WatchRoomLaunch? {
             val launch = WatchTogetherSession.launch ?: return null
             if (session.isLive || !session.reportsProgress || launch.profileId != ApiClient.profileId) return null

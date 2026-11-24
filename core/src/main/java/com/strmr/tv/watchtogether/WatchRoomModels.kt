@@ -36,6 +36,23 @@ data class WatchRoomMember(
     val capabilities: WatchRoomCapabilities = WatchRoomCapabilities(),
 )
 
+/**
+ * The series episode a room plays (`WatchRoomEpisode`): set by the host, followed by everyone
+ * else. Absent for movies and for rooms from before episodes were shared.
+ */
+@Serializable
+data class WatchRoomEpisode(
+    val seasonNumber: Int,
+    val episodeNumber: Int,
+    val episodeId: String? = null,
+    val title: String? = null,
+) {
+    /** The same episode as [other] (by number: ids differ between catalogs). */
+    fun same(other: WatchRoomEpisode?) = other != null && other.seasonNumber == seasonNumber && other.episodeNumber == episodeNumber
+
+    val code: String get() = com.strmr.tv.api.episodeCode(seasonNumber, episodeNumber)
+}
+
 /** A room: the title, its shared playback state and its members. */
 @Serializable
 data class WatchRoom(
@@ -62,6 +79,8 @@ data class WatchRoom(
     val endedAt: String? = null,
     val endReason: String? = null,
     val members: List<WatchRoomMember> = emptyList(),
+    /** The episode everyone plays (a series room whose host shared it); null otherwise. */
+    val episode: WatchRoomEpisode? = null,
 ) {
     val ended: Boolean get() = status == WatchRoomStatus.ENDED
     val isPlaying: Boolean get() = status == WatchRoomStatus.PLAYING

@@ -120,8 +120,9 @@ class PlayerController(
     /** A live channel with provider catch-up: rewinding past what the player holds plays the archive. */
     var catchup: CatchupJoin? = null
         private set
-    // Watch Together: a room covers one title, so no Up Next or next-episode autoplay.
-    val upNext: UpNext? = if (session.reportsProgress && !session.isLive && com.strmr.tv.watchtogether.WatchRoomSync.launchFor(session) == null) {
+    // Watch Together: Up Next and next-episode autoplay are the host's; guests follow its episode.
+    val upNext: UpNext? = if (session.reportsProgress && !session.isLive &&
+        com.strmr.tv.watchtogether.WatchRoomSync.launchFor(session).let { com.strmr.tv.watchtogether.WatchSyncRules.upNextAllowed(it != null, it?.isHost == true) }) {
         UpNext(request, session.streamPath?.takeIf { !session.localFile }, scope, { videoSurface }, onSkip = { seekTo(it) }) { next ->
             report(ended = true)
             advanceTo.value = next.copy(speed = speed.value)
@@ -156,6 +157,11 @@ class PlayerController(
             if (state == Player.STATE_BUFFERING) liveRetune?.buffering()
             if (state == Player.STATE_ENDED && advanceTo.value == null) {
                 if (upNext?.ended() == true) return
+                if (watchRoom?.holdsAtEnd() == true) {
+                    // A guest waits at the end for the host's next episode (the room switches it).
+                    report(ended = true)
+                    return
+                }
                 if (catchup?.ended() == true) return
                 recordingHls?.let { hls ->
                     hls.ended { ended.value = true }

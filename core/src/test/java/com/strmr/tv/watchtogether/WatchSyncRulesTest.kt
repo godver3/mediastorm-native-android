@@ -90,4 +90,39 @@ class QrMatrixTest {
         // The finder pattern's dark corner.
         assertTrue(m[0, 0] && m[m.size - 1, 0] && m[0, m.size - 1])
     }
+
+    @Test fun hostAdvancePostsTheNewEpisode() {
+        val e1 = WatchRoomEpisode(1, 1)
+        val e2 = WatchRoomEpisode(1, 2, "id-2")
+        val r = WatchRoom(id = "r", status = WatchRoomStatus.PLAYING).copy(episode = e1)
+        assertTrue(WatchSyncRules.hostAnnouncesEpisode(isHost = true, room = r, playing = e2))
+        assertFalse(WatchSyncRules.hostAnnouncesEpisode(isHost = true, room = r, playing = WatchRoomEpisode(1, 1, "other-id")))
+        assertFalse(WatchSyncRules.hostAnnouncesEpisode(isHost = false, room = r, playing = e2))
+        assertFalse(WatchSyncRules.hostAnnouncesEpisode(isHost = true, room = r, playing = null))
+        // A room from before episodes: the host names its episode.
+        assertTrue(WatchSyncRules.hostAnnouncesEpisode(isHost = true, room = WatchRoom(id = "r", status = WatchRoomStatus.PLAYING), playing = e1))
+        // The launch's episode keeps the seeded resume; an advance posts where the player is.
+        assertEquals(600.0, WatchSyncRules.hostEpisodePosition(e1, e1, 600.0, 3.0), 0.0)
+        assertEquals(0.0, WatchSyncRules.hostEpisodePosition(e2, e1, 600.0, 0.0), 0.0)
+    }
+
+    @Test fun guestSwitchesToTheHostsEpisode() {
+        val r = WatchRoom(id = "r", status = WatchRoomStatus.PLAYING).copy(episode = WatchRoomEpisode(2, 5))
+        assertEquals(WatchRoomEpisode(2, 5), WatchSyncRules.guestSwitchTarget(false, r, WatchRoomEpisode(2, 4)))
+        assertEquals(WatchRoomEpisode(2, 5), WatchSyncRules.guestSwitchTarget(false, r, null))
+        assertEquals(null, WatchSyncRules.guestSwitchTarget(true, r, WatchRoomEpisode(2, 4)))
+    }
+
+    @Test fun sameEpisodeDoesNotSwitch() {
+        val r = WatchRoom(id = "r", status = WatchRoomStatus.PLAYING).copy(episode = WatchRoomEpisode(2, 5, "a"))
+        assertEquals(null, WatchSyncRules.guestSwitchTarget(false, r, WatchRoomEpisode(2, 5, "b")))
+    }
+
+    @Test fun noRoomEpisodeKeepsTheLegacyBehaviour() {
+        assertEquals(null, WatchSyncRules.guestSwitchTarget(false, WatchRoom(id = "r", status = WatchRoomStatus.PLAYING), WatchRoomEpisode(1, 1)))
+        assertFalse(WatchSyncRules.hostAnnouncesEpisode(isHost = false, room = WatchRoom(id = "r", status = WatchRoomStatus.PLAYING), playing = WatchRoomEpisode(1, 1)))
+        assertTrue(WatchSyncRules.upNextAllowed(inRoom = false, isHost = false))
+        assertTrue(WatchSyncRules.upNextAllowed(inRoom = true, isHost = true))
+        assertFalse(WatchSyncRules.upNextAllowed(inRoom = true, isHost = false))
+    }
 }
