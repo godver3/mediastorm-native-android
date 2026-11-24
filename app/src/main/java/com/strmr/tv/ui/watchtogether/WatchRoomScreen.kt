@@ -134,7 +134,7 @@ private fun LobbyActions(model: WatchLobbyModel, onExit: () -> Unit, onClose: ()
             else -> {
                 when {
                     room.status != WatchRoomStatus.LOBBY ->
-                        Button(onClick = model::rejoinPlayback, modifier = Modifier.focusRequester(first)) { Text("Rejoin Playback") }
+                        Button(onClick = model::rejoinPlayback, modifier = Modifier.focusRequester(first)) { Text(model.rejoinLabel) }
                     model.isHost ->
                         Button(onClick = model::start, enabled = !model.busy, modifier = Modifier.focusRequester(first)) { Text("Start") }
                     else -> Button(onClick = model::toggleReady, enabled = !model.busy, modifier = Modifier.focusRequester(first)) {

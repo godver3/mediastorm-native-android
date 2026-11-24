@@ -47,8 +47,6 @@ class WatchLobbyModel(
 
     /** This lobby opened the player before: a rejoin never seeds the host's resume point again. */
     private var openedBefore = false
-    /** The room's episode when this lobby last opened the player: a new one from the host reopens it. */
-    private var openedEpisode: WatchRoomEpisode? = null
     private var accepted = accountInviteId == null
     private var joined = false
     private var terminal = false
@@ -108,9 +106,7 @@ class WatchLobbyModel(
                 } catch (e: Exception) {
                     if (e.isWatchRoomEnded) markEnded()
                 }
-                // A guest back here (its episode ended, say) follows the host's next episode.
-                val newEpisode = next.episode != null && !next.episode.same(openedEpisode) && !next.isHost(profileId)
-                if (next.isPlaying && (!playbackOpened || newEpisode) && !PlaybackCoordinator.playerOpen) openPlayback()
+                if (next.isPlaying && !playbackOpened && !PlaybackCoordinator.playerOpen) openPlayback()
             }
         } catch (e: CancellationException) {
             throw e
@@ -191,7 +187,14 @@ class WatchLobbyModel(
         if (room?.isPlaying == true && !playbackOpened) openPlayback()
     }
 
-    /** Back in the lobby while the room plays: opens the player again. */
+    /**
+     * The Rejoin Playback button, naming the host's episode when the room has one (the lobby
+     * never reopens the player by itself; rejoining starts that episode).
+     */
+    val rejoinLabel: String
+        get() = room?.episode?.let { "Rejoin Playback · Host is on ${it.code}" } ?: "Rejoin Playback"
+
+    /** Back in the lobby while the room plays: opens the player again (on the room's episode). */
     fun rejoinPlayback() {
         if (room?.ended == false) openPlayback()
     }
@@ -236,7 +239,6 @@ class WatchLobbyModel(
     private fun openPlayback() {
         val current = room ?: return
         playbackOpened = true
-        openedEpisode = current.episode
         scope.launch {
             try {
                 val prepared = WatchRoomPlayback.prepare(current)

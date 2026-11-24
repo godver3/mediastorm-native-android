@@ -130,7 +130,7 @@ private fun Actions(model: WatchLobbyModel, onExit: () -> Unit, onClose: () -> U
             room == null || model.ended -> FilledTonalButton(onClick = onClose, modifier = wide) { Text("Close") }
             else -> {
                 when {
-                    room.status != WatchRoomStatus.LOBBY -> Button(onClick = model::rejoinPlayback, modifier = wide) { Text("Rejoin Playback") }
+                    room.status != WatchRoomStatus.LOBBY -> Button(onClick = model::rejoinPlayback, modifier = wide) { Text(model.rejoinLabel) }
                     model.isHost -> Button(onClick = model::start, enabled = !model.busy, modifier = wide) { Text("Start") }
                     else -> Button(onClick = model::toggleReady, enabled = !model.busy, modifier = wide) {
                         Text(if (model.me?.ready == true) "Not Ready" else "I'm Ready")
