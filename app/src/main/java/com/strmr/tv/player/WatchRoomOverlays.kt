@@ -35,12 +35,12 @@ import com.strmr.tv.watchtogether.WatchRoomSync
  * preparing card with who is ready.
  */
 @Composable
-fun WatchRoomOverlays(sync: WatchRoomSync, modifier: Modifier = Modifier) {
+fun WatchRoomOverlays(sync: WatchRoomSync, controlsVisible: Boolean = false, modifier: Modifier = Modifier) {
     val room by sync.room.collectAsState()
     val switching by sync.switching.collectAsState()
     val current = room ?: return
     Box(modifier.fillMaxSize().focusProperties { canFocus = false }) {
-        AnimatedVisibility(com.strmr.tv.ui.watchtogether.rememberPresenceVisible(current), Modifier.align(Alignment.TopStart), enter = fadeIn(), exit = fadeOut()) {
+        AnimatedVisibility(com.strmr.tv.ui.watchtogether.rememberPresenceVisible(current, controlsVisible), Modifier.align(Alignment.TopStart), enter = fadeIn(), exit = fadeOut()) {
             Row(
                 Modifier.padding(top = 40.dp, start = 64.dp)
                     .background(Color.Black.copy(alpha = 0.45f), RoundedCornerShape(20.dp)).padding(horizontal = 10.dp, vertical = 6.dp),

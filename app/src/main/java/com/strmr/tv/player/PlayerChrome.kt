@@ -79,6 +79,7 @@ fun PlayerChrome(controller: PlayerController, onExit: () -> Unit, onAddScreen: 
     val scope = rememberCoroutineScope()
     val scrub = remember { ScrubState(controller, scope) }
     var visible by remember { mutableStateOf(true) }
+    androidx.compose.runtime.LaunchedEffect(visible) { controller.controlsVisible.value = visible }
     var menu by remember { mutableStateOf<Menu?>(null) }
     var lastInput by remember { mutableLongStateOf(System.currentTimeMillis()) }
     var pillFocused by remember { mutableStateOf(false) }

@@ -91,6 +91,13 @@ class QrMatrixTest {
         assertTrue(m[0, 0] && m[m.size - 1, 0] && m[0, m.size - 1])
     }
 
+    @Test fun presenceFollowsTheControls() {
+        val r = WatchRoom(id = "r", status = WatchRoomStatus.PLAYING)
+        val late = WatchSyncRules.PRESENCE_SHOW_MS + 1
+        assertFalse(WatchSyncRules.presenceVisible(r, 0, late))
+        assertTrue(WatchSyncRules.presenceVisible(r, 0, late, controlsVisible = true))
+    }
+
     @Test fun hostAdvancePostsTheNewEpisode() {
         val e1 = WatchRoomEpisode(1, 1)
         val e2 = WatchRoomEpisode(1, 2, "id-2")

@@ -37,11 +37,11 @@ object WatchSyncRules {
         if (isHost && firstOpen && roomPosition < 1.0 && ownResume > 0) ownResume else 0.0
 
     /**
-     * The presence strip shows for [PRESENCE_SHOW_MS] after who's there (or their state) changes,
-     * and stays while the room waits for players or anyone is buffering.
+     * The presence strip shows with the player's controls, for [PRESENCE_SHOW_MS] after who's
+     * there (or their state) changes, and while the room waits for players or anyone is buffering.
      */
-    fun presenceVisible(room: WatchRoom, changedAtMs: Long, nowMs: Long): Boolean =
-        room.waitingForReady || room.members.any { it.joined && it.buffering } || nowMs - changedAtMs < PRESENCE_SHOW_MS
+    fun presenceVisible(room: WatchRoom, changedAtMs: Long, nowMs: Long, controlsVisible: Boolean = false): Boolean =
+        controlsVisible || room.waitingForReady || room.members.any { it.joined && it.buffering } || nowMs - changedAtMs < PRESENCE_SHOW_MS
 
     /** What the presence strip shows: a change restarts its timer. */
     fun presenceKey(room: WatchRoom): String =

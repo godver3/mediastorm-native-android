@@ -65,6 +65,7 @@ fun PlayerControls(
     val behindLive by controller.behindLive.collectAsState()
     val timer = remember { ChromeTimer() }
     var visible by remember { mutableStateOf(true) }
+    androidx.compose.runtime.LaunchedEffect(visible) { controller.controlsVisible.value = visible }
     var scrubbing by remember { mutableStateOf(false) }
     var castPicker by remember { mutableStateOf(false) }
     val busy by rememberUpdatedState(ui.sheet != null || scrubbing)

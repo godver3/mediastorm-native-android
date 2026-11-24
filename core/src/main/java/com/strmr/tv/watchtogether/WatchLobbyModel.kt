@@ -192,7 +192,7 @@ class WatchLobbyModel(
      * never reopens the player by itself; rejoining starts that episode).
      */
     val rejoinLabel: String
-        get() = room?.episode?.let { "Rejoin Playback · Host is on ${it.code}" } ?: "Rejoin Playback"
+        get() = room?.episode?.let { "Rejoin · Host is on ${it.code}" } ?: "Rejoin"
 
     /** Back in the lobby while the room plays: opens the player again (on the room's episode). */
     fun rejoinPlayback() {
@@ -260,7 +260,7 @@ class WatchLobbyModel(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                // Not retried by the poll: Rejoin Playback tries again.
+                // Not retried by the poll: Rejoin tries again.
                 error = e.message ?: "Couldn't start playback."
             }
         }

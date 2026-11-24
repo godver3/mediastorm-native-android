@@ -12,7 +12,7 @@ import kotlinx.coroutines.delay
 
 /** Whether the player's presence strip shows now ([WatchSyncRules.presenceVisible]); both apps' overlays use it. */
 @Composable
-fun rememberPresenceVisible(room: WatchRoom): Boolean {
+fun rememberPresenceVisible(room: WatchRoom, controlsVisible: Boolean = false): Boolean {
     val key = WatchSyncRules.presenceKey(room)
     var changedAt by remember { mutableLongStateOf(System.currentTimeMillis()) }
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
@@ -23,5 +23,5 @@ fun rememberPresenceVisible(room: WatchRoom): Boolean {
         delay(WatchSyncRules.PRESENCE_SHOW_MS + 50)
         now = System.currentTimeMillis()
     }
-    return WatchSyncRules.presenceVisible(room, changedAt, now)
+    return WatchSyncRules.presenceVisible(room, changedAt, now, controlsVisible)
 }

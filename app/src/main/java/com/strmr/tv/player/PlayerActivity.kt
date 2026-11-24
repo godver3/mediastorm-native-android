@@ -111,7 +111,7 @@ class PlayerActivity : ComponentActivity() {
                     val aspect by c.videoAspect.collectAsState()
                     // The device's subtitle style (Settings, or the Subtitles menu's Style picks), live.
                     SubtitleOverlay(cues, SubtitleStyleStore.style, aspect, Modifier.fillMaxSize())
-                    c.watchRoom?.let { WatchRoomOverlays(it) }
+                    c.watchRoom?.let { WatchRoomOverlays(it, c.controlsVisible.collectAsState().value) }
                     PlayerChrome(c, onExit = { finish() }, onAddScreen = { addScreen(c) }.takeIf { session.liveChannel != null })
                     SubtitleStatusToast(c, Modifier.align(androidx.compose.ui.Alignment.TopEnd))
                 }

@@ -71,6 +71,8 @@ class PlayerController(
     val switching = MutableStateFlow(false)
     /** A short message over the player (a catch-up that couldn't open), cleared by the chrome. */
     val notice = MutableStateFlow<String?>(null)
+    /** The player's controls are on screen (set by the chrome): the Watch Together presence strip follows them. */
+    val controlsVisible = MutableStateFlow(false)
     /** Set when playback moves on to the next episode; the activity closes and starts it. */
     val advanceTo = MutableStateFlow<PlaybackRequest?>(null)
     /** Set by Switch Source; the activity closes and resumes on the chosen source. */

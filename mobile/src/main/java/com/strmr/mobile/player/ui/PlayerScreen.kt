@@ -68,7 +68,7 @@ fun PlayerScreen(
         val aspect by controller.videoAspect.collectAsState()
         // Fit: on the picture. Zoom / Stretch: the picture is the screen (or past it), so the screen.
         PhoneSubtitleOverlay(cues, SubtitleStyleStore.style, if (aspectMode == AspectMode.FIT) aspect else 0f, Modifier.fillMaxSize())
-        if (!inPip) controller.watchRoom?.let { WatchRoomOverlays(it) }
+        if (!inPip) controller.watchRoom?.let { WatchRoomOverlays(it, controller.controlsVisible.collectAsState().value) }
         if (!inPip) {
             PlayerControls(
                 controller = controller,
