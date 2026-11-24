@@ -37,6 +37,7 @@ class DetailsPageState(val model: DetailsModel) {
     var more by mutableStateOf(false)
     var watchState by mutableStateOf(false)
     var episodeOrder by mutableStateOf(false)
+    var quality by mutableStateOf(false)
 
     /** The Audio & Subtitles picks for the prequeued stream of the episode Play targets. */
     val prequeueTracks = PrequeueTracks(model) { activeEpisode }

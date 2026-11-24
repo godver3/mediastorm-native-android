@@ -109,6 +109,9 @@ class DetailsModel(val target: DetailsTarget) {
         libraryLookup.complete(versions)
     }
 
+    /** The Quality action: the presets offered for the title and the active one. */
+    val quality = QualityPresetState(target)
+
     /** Play found several copies: the details page lists them to pick from (null: no question). */
     var playChoice by mutableStateOf<PlayChoice?>(null)
 

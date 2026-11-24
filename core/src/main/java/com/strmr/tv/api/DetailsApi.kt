@@ -34,7 +34,15 @@ suspend fun ApiClient.detailsBundle(t: DetailsTarget, seasonType: String? = null
  * cache / usenet health (pending rows resolve via [sourceHealth]). Carries this route's
  * throughput estimate, as Expo's search does, so adaptive playback can cap the results.
  */
-suspend fun ApiClient.searchSources(query: String, title: DetailsTarget, numbering: EpisodeNumbering? = null): List<SourceResult> {
+suspend fun ApiClient.searchSources(
+    query: String,
+    title: DetailsTarget,
+    numbering: EpisodeNumbering? = null,
+    /** A quality preset picked on details (an ID or "simple"); the server ranks with it. */
+    qualityPreset: String? = null,
+    /** Also return filtered results with their `filterReason` (Other qualities). */
+    includeFiltered: Boolean = false,
+): List<SourceResult> {
     val q = buildMap {
         put("q", query)
         put("titleId", title.titleId)
@@ -42,6 +50,8 @@ suspend fun ApiClient.searchSources(query: String, title: DetailsTarget, numberi
         put("userId", profileId)
         put("includeSourceHealth", "true")
         put("limit", "50") // server default is 5
+        qualityPreset?.let { put("qualityPreset", it) }
+        if (includeFiltered) put("includeFiltered", "true")
         title.imdbId?.let { put("imdbId", it) }
         title.year?.let { put("year", it.toString()) }
         // The episode's ordering, so "S01E02" is searched for as that ordering's episode.

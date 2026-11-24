@@ -5,6 +5,7 @@ import androidx.compose.material.icons.automirrored.outlined.PlaylistAdd
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Checklist
 import androidx.compose.material.icons.outlined.FormatListNumbered
+import androidx.compose.material.icons.outlined.HighQuality
 import androidx.compose.material.icons.outlined.PauseCircle
 import androidx.compose.material.icons.outlined.PlayArrow
 import androidx.compose.material.icons.outlined.RemoveCircleOutline
@@ -53,6 +54,7 @@ fun DetailsMoreSheet(state: DetailsPageState, warm: WarmPrequeue?, scope: Corout
     val actions = buildList {
         if (state.prequeueTracks.visible(warm)?.tracks != null) add(SheetAction("Audio & Subtitles", AppIcons.Waveform) { state.prequeueTracks.open = true })
         if (target.isMovie || state.activeEpisode != null) add(SheetAction("Choose Source", Icons.Outlined.Search) { state.sourcesFor = EpisodeTarget(state.activeEpisode) })
+        if (model.quality.visible) add(SheetAction("${model.quality.label}…", Icons.Outlined.HighQuality) { state.quality = true })
         if (model.libraryVersions(state.activeEpisode).isNotEmpty()) {
             add(SheetAction("Versions", Icons.Outlined.Storage) { state.versionsFor = EpisodeTarget(state.activeEpisode) })
         }
@@ -127,6 +129,26 @@ fun EpisodeOrderSheet(state: DetailsPageState, scope: CoroutineScope) {
     ActionSheet(
         { state.episodeOrder = false },
         header = { SheetHeader("Episode Order", "Non-default orders pause watch-history sync for this show.", null) },
+        actions = actions,
+    )
+}
+
+/**
+ * Quality: the presets the server offers for the title, in its order, the default marked and
+ * the current one checked. The pick ranks Play and Choose Source; the server remembers it for
+ * this title on this device (the default forgets it).
+ */
+@Composable
+fun QualityPresetSheet(state: DetailsPageState) {
+    val quality = state.model.quality
+    val active = quality.activeId
+    val actions = quality.offered.map { preset ->
+        val label = if (preset.id == quality.defaultId) "${preset.name} (default)" else preset.name
+        SheetAction(label, if (preset.id == active) Icons.Outlined.CheckCircle else Icons.Outlined.HighQuality) { quality.pick(preset.id) }
+    }
+    ActionSheet(
+        { state.quality = false },
+        header = { SheetHeader("Quality", "Remembered for this title on this device.", null) },
         actions = actions,
     )
 }

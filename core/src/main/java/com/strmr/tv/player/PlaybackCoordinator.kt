@@ -318,6 +318,9 @@ object PlaybackCoordinator {
     /** Starts resolving what `target`'s details page would play as it opens ([PrequeueResolver.prewarm]). */
     fun prewarm(target: DetailsTarget) = prequeue.prewarm(target)
 
+    /** Restarts the details warm-up after a quality preset pick ([PrequeueResolver.rewarm]). */
+    fun rewarm(target: DetailsTarget) = prequeue.rewarm(target)
+
     /** Starts resolving the next episode near the end of this one ([PrequeueResolver.prefetch]); [play] adopts it. */
     fun prefetch(request: PlaybackRequest) = prequeue.prefetch(request)
 }

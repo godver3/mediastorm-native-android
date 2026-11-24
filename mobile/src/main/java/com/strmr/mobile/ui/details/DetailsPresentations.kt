@@ -48,9 +48,10 @@ fun DetailsPresentations(state: DetailsPageState, warm: WarmPrequeue?, scope: Co
         }
     }
 
+    if (state.quality) QualityPresetSheet(state)
     state.sourcesFor?.let { picker ->
         SourcePicker(
-            model.target, picker.episode, model.libraryVersions(picker.episode),
+            model.target, picker.episode, model.libraryVersions(picker.episode), model.quality,
             onPick = { source, manual -> state.choose(source, picker.episode, manual) },
             onPickLibrary = { state.chooseVersion(it, picker.episode) },
             onDismiss = { state.sourcesFor = null },

@@ -43,6 +43,9 @@ import androidx.compose.ui.window.DialogProperties
 import com.strmr.mobile.ui.components.cardClicks
 import com.strmr.mobile.ui.library.LibraryVersionItem
 import com.strmr.tv.api.ApiClient
+import com.strmr.tv.api.ApiError
+import com.strmr.tv.ui.details.QualityPresetState
+import com.strmr.tv.ui.details.SourceSections
 import com.strmr.tv.api.DetailsTarget
 import com.strmr.tv.api.Episode
 import com.strmr.tv.api.SourceHealth
@@ -59,7 +62,8 @@ import com.strmr.tv.ui.details.SourceTracks
  * copies first, then the server's indexer and scraper results with their debrid cache / usenet
  * health (pending checks long-polled until they settle). Long press on a result opens its
  * Audio & Subtitles ([SourceTracks]); the tracks chosen there also apply when the result is
- * tapped directly.
+ * tapped directly. When a quality preset ranks the title, the results carry its tags, a
+ * "Ranked by" line names it, and the releases it rejected sit under a collapsed "Other qualities".
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -67,6 +71,7 @@ fun SourcePicker(
     title: DetailsTarget,
     episode: Episode?,
     libraryVersions: List<LibraryVersion>,
+    quality: QualityPresetState?,
     onPick: (SourceResult, ManualSourceTracks?) -> Unit,
     onPickLibrary: (LibraryVersion) -> Unit,
     onDismiss: () -> Unit,
@@ -77,9 +82,22 @@ fun SourcePicker(
     var loading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf<String?>(null) }
     val health = remember { mutableStateMapOf<Int, SourceHealth>() }
-    LaunchedEffect(Unit) {
+    var note by remember { mutableStateOf<String?>(null) }
+    var showOther by remember { mutableStateOf(false) }
+    val sections = remember(results) { SourceSections.of(results) }
+    LaunchedEffect(quality?.revision) {
+        val query = SourceSwitchRules.query(title, episode?.code)
+        val preset = quality?.requested
+        val includeFiltered = quality?.presetRanked == true
         try {
-            results = ApiClient.searchSources(SourceSwitchRules.query(title, episode?.code), title, episode?.numbering)
+            results = try {
+                ApiClient.searchSources(query, title, episode?.numbering, preset, includeFiltered)
+            } catch (e: ApiError) {
+                // A preset the server no longer allows (400 / 403): search with its own choice.
+                if (preset == null || (e.statusCode != 400 && e.statusCode != 403)) throw e
+                note = "Quality preset unavailable: ${e.message}"
+                ApiClient.searchSources(query, title, episode?.numbering, includeFiltered = includeFiltered)
+            }
             results.forEach { r -> r.health?.let { health[r.index] = it } }
         } catch (e: Exception) {
             error = e.message ?: "Search failed"
@@ -123,7 +141,10 @@ fun SourcePicker(
                         }
                     }
                 }
-                section(if (!loading && error == null && results.isNotEmpty()) "${results.size} Streams" else "Streams")
+                section(if (!loading && error == null && sections.main.isNotEmpty()) "${sections.main.size} Streams" else "Streams")
+                (sections.rankedBy?.let { "Ranked by: $it" } ?: note)?.let { line ->
+                    item(key = "ranked") { Text(line, Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                }
                 when {
                     loading -> item {
                         Row(Modifier.padding(24.dp), horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -132,10 +153,27 @@ fun SourcePicker(
                         }
                     }
                     error != null -> item { Text(error!!, Modifier.padding(24.dp), color = MaterialTheme.colorScheme.error) }
-                    results.isEmpty() -> item { Text("No sources found", Modifier.padding(24.dp), color = MaterialTheme.colorScheme.onSurfaceVariant) }
-                    else -> items(results, key = { it.index }) { result ->
-                        SourceRow(result, health[result.index], tracks.hasChoice(result), onLongClick = { tracks.open(result) }) {
-                            pick(result, tracks.manualFor(result))
+                    sections.main.isEmpty() && sections.otherQualities.isEmpty() ->
+                        item { Text("No sources found", Modifier.padding(24.dp), color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                    else -> {
+                        items(sections.main, key = { it.index }) { result ->
+                            SourceRow(result, health[result.index], tracks.hasChoice(result), onLongClick = { tracks.open(result) }) {
+                                pick(result, tracks.manualFor(result))
+                            }
+                        }
+                        if (sections.otherQualities.isNotEmpty()) {
+                            item(key = "other") {
+                                ListItem(
+                                    headlineContent = { Text("Other qualities (${sections.otherQualities.size})", fontWeight = FontWeight.SemiBold) },
+                                    trailingContent = { Text(if (showOther) "Hide" else "Show") },
+                                    modifier = Modifier.cardClicks({ showOther = !showOther }, null),
+                                )
+                            }
+                            if (showOther) items(sections.otherQualities, key = { it.index }) { result ->
+                                SourceRow(result, health[result.index], tracks.hasChoice(result), onLongClick = { tracks.open(result) }) {
+                                    pick(result, tracks.manualFor(result))
+                                }
+                            }
                         }
                     }
                 }
@@ -170,7 +208,7 @@ private fun LazyListScope.section(title: String) = item(key = "section-$title") 
 private fun SourceRow(result: SourceResult, health: SourceHealth?, tracksChosen: Boolean, onLongClick: () -> Unit, onClick: () -> Unit) {
     val context = LocalContext.current
     val attrs = result.attributes
-    val badges = SourceRowText.badges(attrs)
+    val badges = SourceSections.tags(result) + SourceRowText.badges(attrs)
     val size = result.sizeBytes.takeIf { it > 0 }?.let { Formatter.formatShortFileSize(context, it) }
     val details = SourceRowText.details(attrs, size, result.serviceType, result.indexer, tracksChosen)
     ListItem(

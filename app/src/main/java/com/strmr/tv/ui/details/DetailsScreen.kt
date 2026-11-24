@@ -99,6 +99,7 @@ fun DetailsScreen(target: DetailsTarget, openWatchState: Boolean = false, autopl
     var more by remember { mutableStateOf(false) }
     var customizingButtons by remember { mutableStateOf(false) }
     var episodeOrder by remember { mutableStateOf(false) }
+    var quality by remember { mutableStateOf(false) }
     var watchTogether by remember { mutableStateOf(false) }
     val navigator = com.strmr.tv.ui.LocalNavigator.current
     val actions = com.strmr.tv.library.TitleActions.changes
@@ -111,6 +112,7 @@ fun DetailsScreen(target: DetailsTarget, openWatchState: Boolean = false, autopl
         }
     }
     LaunchedEffect(model) { model.loadLibrary() }
+    LaunchedEffect(model) { if (!target.fromLibrary) model.quality.load() }
     LaunchedEffect(model) { if (!target.isMovie) SpoilerSettings.refresh() }
     LaunchedEffect(model) { runCatching { DetailsInfo.refresh() } }
     // A title action taken elsewhere (a menu over this page, another page): show its new state.
@@ -205,6 +207,7 @@ fun DetailsScreen(target: DetailsTarget, openWatchState: Boolean = false, autopl
                     onStartOver = startOver,
                     onVersions = openVersions,
                     onChooseSource = chooseSource,
+                    onQuality = { quality = true },
                     prequeueTracks = prequeueTracks,
                     warm = warm,
                     onWatchState = { watchState = true },
@@ -236,7 +239,7 @@ fun DetailsScreen(target: DetailsTarget, openWatchState: Boolean = false, autopl
     if (more) {
         val moved = movedActions(
             model, trailer, prequeueTracks, warm, scope,
-            onStartOver = startOver, onVersions = openVersions, onChooseSource = chooseSource, onWatchState = { watchState = true },
+            onStartOver = startOver, onVersions = openVersions, onChooseSource = chooseSource, onQuality = { quality = true }, onWatchState = { watchState = true },
         )
         val order = if (model.offersOrderings) {
             DialogChoice("Episode Order: ${model.currentOrdering?.name ?: "Default"}…") { episodeOrder = true }
@@ -250,10 +253,13 @@ fun DetailsScreen(target: DetailsTarget, openWatchState: Boolean = false, autopl
         )
     }
     if (episodeOrder) EpisodeOrderDialog(model, scope, onDismiss = { episodeOrder = false })
-    if (customizingButtons) DetailsButtonsDialog(onDismiss = { customizingButtons = false })
+    if (customizingButtons) {
+        DetailsButtonsDialog(hidden = if (model.quality.visible) emptySet() else setOf(DetailsAction.QUALITY), onDismiss = { customizingButtons = false })
+    }
+    if (quality) QualityPresetDialog(model.quality, target.name, onDismiss = { quality = false })
     picker?.let { p ->
         SourcePicker(
-            target, p.episode, onPick = { source, manual -> choose(source, p.episode, manual) }, onDismiss = { picker = null },
+            target, p.episode, model.quality, onPick = { source, manual -> choose(source, p.episode, manual) }, onDismiss = { picker = null },
             libraryVersions = model.libraryVersions(p.episode), onPickLibrary = { chooseVersion(it, p.episode) },
         )
     }

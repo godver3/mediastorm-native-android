@@ -99,6 +99,7 @@ fun movedActions(
     onStartOver: (DetailsModel.Primary) -> Unit,
     onVersions: () -> Unit,
     onChooseSource: () -> Unit,
+    onQuality: () -> Unit,
     onWatchState: () -> Unit,
 ): List<DialogChoice> {
     val more = DetailsButtons.inMore()
@@ -111,6 +112,7 @@ fun movedActions(
         if (DetailsAction.CHOOSE_SOURCE in more && (target.isMovie || model.primaryEpisode != null)) {
             add(DialogChoice("Choose Source", onChooseSource))
         }
+        if (DetailsAction.QUALITY in more && model.quality.visible) add(DialogChoice("${model.quality.label}…", onQuality))
         if (DetailsAction.TRACKS in more && prequeueTracks.visible(warm)?.tracks != null) {
             add(DialogChoice("Audio & Subtitles") { prequeueTracks.open = true })
         }

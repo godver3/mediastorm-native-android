@@ -27,6 +27,8 @@ enum class DetailsAction(val title: String) {
     START_OVER("Start Over"),
     VERSIONS("Versions"),
     CHOOSE_SOURCE("Choose Source"),
+    /** Quality presets: only on servers that offer presets for the title. */
+    QUALITY("Quality"),
     TRACKS("Audio & Subtitles"),
     TRAILER("Trailer"),
     WATCHLIST("Watchlist"),
@@ -38,10 +40,17 @@ enum class DetailsAction(val title: String) {
  * Which of the details page's secondary actions sit in the action row and which are listed in
  * More instead (Customize Buttons…, at the end of More). Play / Resume and More always stay in
  * the row, in a fixed order, so a hidden button only closes its gap. Kept on the device, per
- * profile; Manage Lists starts in More (as on tvOS).
+ * profile; Manage Lists and Quality start in More (as on tvOS).
  */
 object DetailsButtons {
-    val defaultInMore = setOf(DetailsAction.LISTS)
+    val defaultInMore = setOf(DetailsAction.LISTS, DetailsAction.QUALITY)
+
+    /**
+     * Actions added after layouts were already saved: in More unless moved to the row, which is
+     * stored as "row:<name>" (a saved set from before them doesn't name them at all).
+     */
+    private val laterInMore = setOf(DetailsAction.QUALITY)
+    private const val ROW = "row:"
 
     private val prefs by lazy { App.context.getSharedPreferences("strmr", Context.MODE_PRIVATE) }
     private fun key(profileId: String) = "detailsButtons.inMore.$profileId"
@@ -58,13 +67,19 @@ object DetailsButtons {
 
     fun setInRow(action: DetailsAction, shown: Boolean, profileId: String = ApiClient.profileId) {
         val more = inMore(profileId).let { if (shown) it - action else it + action }
-        prefs.edit().putStringSet(key(profileId), more.map { it.name }.toSet()).apply()
+        prefs.edit().putStringSet(key(profileId), encode(more)).apply()
         revision++
     }
 
     /** The stored names, else (nothing stored) the defaults; unknown names are dropped. */
-    internal fun decode(stored: Set<String>?): Set<DetailsAction> =
-        stored?.mapNotNull { name -> DetailsAction.entries.firstOrNull { it.name == name } }?.toSet() ?: defaultInMore
+    internal fun decode(stored: Set<String>?): Set<DetailsAction> {
+        if (stored == null) return defaultInMore
+        val named = stored.mapNotNull { name -> DetailsAction.entries.firstOrNull { it.name == name } }.toSet()
+        return named + laterInMore.filter { ROW + it.name !in stored }
+    }
+
+    internal fun encode(more: Set<DetailsAction>): Set<String> =
+        more.map { it.name }.toSet() + laterInMore.filter { it !in more }.map { ROW + it.name }
 }
 
 /**
@@ -72,11 +87,11 @@ object DetailsButtons {
  * selecting it moves it to the other, with the panel left up.
  */
 @Composable
-fun DetailsButtonsDialog(onDismiss: () -> Unit) {
+fun DetailsButtonsDialog(hidden: Set<DetailsAction> = emptySet(), onDismiss: () -> Unit) {
     val first = remember { FocusRequester() }
     LaunchedEffect(Unit) { withFrameNanos { }; runCatching { first.requestFocus() } }
     SidePanelDialog("Customize Buttons", "Where each button goes", onDismiss) {
-        itemsIndexed(DetailsAction.entries) { index, action ->
+        itemsIndexed(DetailsAction.entries.filter { it !in hidden }) { index, action ->
             val shown = DetailsButtons.inRow(action)
             ListItem(
                 selected = false,

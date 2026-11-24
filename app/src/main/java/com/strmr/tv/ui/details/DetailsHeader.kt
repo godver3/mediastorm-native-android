@@ -72,6 +72,7 @@ fun BoxScope.DetailsHeader(
     onStartOver: (DetailsModel.Primary) -> Unit,
     onVersions: () -> Unit,
     onChooseSource: () -> Unit,
+    onQuality: () -> Unit,
     prequeueTracks: PrequeueTracks,
     warm: WarmPrequeue?,
     onWatchState: () -> Unit,
@@ -125,6 +126,11 @@ fun BoxScope.DetailsHeader(
                 if (DetailsButtons.inRow(DetailsAction.CHOOSE_SOURCE)) {
                     IconButton(onClick = onChooseSource, enabled = target.isMovie || model.primaryEpisode != null) {
                         Icon(Icons.Filled.Search, contentDescription = "Choose Source")
+                    }
+                }
+                if (model.quality.visible && DetailsButtons.inRow(DetailsAction.QUALITY)) {
+                    CaptionedIconButton(model.quality.label, onClick = onQuality) {
+                        Icon(AppIcons.HighQuality, contentDescription = model.quality.label)
                     }
                 }
                 if (DetailsButtons.inRow(DetailsAction.TRACKS)) PrequeueTracksButton(prequeueTracks, warm)

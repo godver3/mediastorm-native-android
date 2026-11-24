@@ -27,6 +27,12 @@ class SourceResult private constructor(
     val attributes: Map<String, String> = runCatching {
         raw["attributes"]?.jsonObject?.mapNotNull { (k, v) -> (v as? JsonPrimitive)?.contentOrNull?.let { k to it } }?.toMap()
     }.getOrNull() ?: emptyMap()
+    /** `includeFiltered=true`: why the result was filtered out (empty when it passed). */
+    val filterReason: String? = raw.str("filterReason")?.ifEmpty { null }
+    /** Quality-preset tags: the Sonarr/Radarr quality ("WEB-2160p"), score and preset name. */
+    val arrQuality: String? get() = attributes["arrQuality"]?.ifEmpty { null }
+    val customFormatScore: String? get() = attributes["customFormatScore"]?.ifEmpty { null }
+    val rankedBy: String? get() = attributes["qualityPreset"]?.ifEmpty { null }
     /** Debrid cache / usenet health annotation (`includeSourceHealth=true`). */
     val health: SourceHealth? = runCatching { raw["sourceHealth"]?.jsonObject }.getOrNull()?.let { h ->
         h.str("state")?.let { SourceHealth(it, h.str("token")) }

@@ -9,10 +9,12 @@ import com.strmr.tv.api.prequeueStatus
 import com.strmr.tv.api.startPrequeue
 import com.strmr.tv.app.AppLog
 import com.strmr.tv.app.Config
+import com.strmr.tv.ui.details.QualityPresetPicks
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -43,6 +45,10 @@ internal class PrequeueResolver(
      */
     private var warmed: Warmed? = null
 
+    /** Bumped when a warm-up is replaced, so the old one's watcher stops and can't settle the new one. */
+    private var warmGen = 0
+    private var warmJob: Job? = null
+
     private class Warmed(val titleId: String, val profile: String, val started: Long, var prequeue: Deferred<String?>?)
 
     /**
@@ -50,6 +56,19 @@ internal class PrequeueResolver(
      * starts quickly, unless the profile turned prequeue off. At most once per title and
      * profile every ten minutes.
      */
+    /**
+     * Cancels the title's warm-up and starts it again, after a quality preset was picked: the
+     * new one sends the pick (`qualityPreset`), so the server remembers it for the profile,
+     * device and title, and a warm-up ranked with the old preset is not reused.
+     */
+    fun rewarm(target: DetailsTarget) {
+        warmed = null
+        warmJob?.cancel()
+        warmGen++
+        _warm.value = null
+        prewarm(target)
+    }
+
     fun prewarm(target: DetailsTarget) {
         if (target.fromLibrary) return // Play uses the library's copy
         val profile = ApiClient.profileId
@@ -57,12 +76,15 @@ internal class PrequeueResolver(
         // No episode or start point: the server targets the series' next-up episode.
         val body = body(PlaybackRequest(target))
         _warm.value = WarmPrequeue(target.titleId, profile, WarmPrequeue.Phase.RESOLVING)
+        val gen = ++warmGen
+        warmJob?.cancel()
         val task = scope.async {
             val id = if (runCatching { ApiClient.playbackSettings().prequeueOnOpen }.getOrDefault(false)) {
                 runCatching { ApiClient.startPrequeue(body).prequeueId }.getOrNull()
             } else null
+            if (gen != warmGen) return@async id
             if (id == null) settleWarm(target.titleId, profile, WarmPrequeue.Phase.UNAVAILABLE, null)
-            else scope.launch { watchWarm(id, body, target.titleId, profile) }
+            else warmJob = scope.launch { watchWarm(id, body, target.titleId, profile, gen) }
             id
         }
         warmed = Warmed(target.titleId, profile, System.currentTimeMillis(), task)
@@ -74,11 +96,11 @@ internal class PrequeueResolver(
      * restarted), asks once more, since the server hands back whatever entry now holds that
      * title, then gives up rather than polling a dead id until the deadline.
      */
-    private suspend fun watchWarm(firstId: String, body: JsonObject, titleId: String, profile: String) {
+    private suspend fun watchWarm(firstId: String, body: JsonObject, titleId: String, profile: String, gen: Int) {
         var id = firstId
         var restarted = false
         val deadline = System.currentTimeMillis() + 180_000
-        while (System.currentTimeMillis() < deadline && _warm.value?.let { it.titleId == titleId && it.profile == profile } == true) {
+        while (System.currentTimeMillis() < deadline && gen == warmGen && _warm.value?.let { it.titleId == titleId && it.profile == profile } == true) {
             try {
                 val status = ApiClient.prequeueStatus(id)
                 if (status.status == "ready") {
@@ -107,6 +129,7 @@ internal class PrequeueResolver(
             }
             delay(1500)
         }
+        if (gen != warmGen) return
         AppLog.i("Prequeue", "details prequeue $id unavailable")
         settleWarm(titleId, profile, WarmPrequeue.Phase.UNAVAILABLE, null)
     }
@@ -144,7 +167,7 @@ internal class PrequeueResolver(
             w.prequeue = null
             pendingPrequeue.await()?.let { id ->
                 try {
-                    return await(id, request.episode)
+                    return await(id, request.title.titleId, request.episode)
                 } catch (e: CancellationException) {
                     throw e
                 } catch (_: Exception) {
@@ -154,13 +177,13 @@ internal class PrequeueResolver(
         }
         val body = body(request)
         return try {
-            await(ApiClient.startPrequeue(body).prequeueId)
+            await(ApiClient.startPrequeue(body).prequeueId, request.title.titleId)
         } catch (e: ApiError) {
             // Dropped on the server mid-resolve: ask once more; the server returns whichever
             // entry now holds this title (an in-flight one is reused, not restarted).
             if (!isGone(e)) throw e
             AppLog.w("Prequeue", "prequeue gone on the server; restarting once")
-            await(ApiClient.startPrequeue(body).prequeueId)
+            await(ApiClient.startPrequeue(body).prequeueId, request.title.titleId)
         }
     }
 
@@ -189,13 +212,15 @@ internal class PrequeueResolver(
             }
         }
         request.startPosition?.let { put("startOffset", it) }
+        // A quality preset picked on details: the server ranks with it and remembers it.
+        QualityPresetPicks.picked(t.titleId)?.let { put("qualityPreset", it) }
     }
 
     /**
      * Polls a prequeue until its stream is ready. With `episode`, gives up straight away if
      * the prequeue is resolving a different one.
      */
-    private suspend fun await(id: String, episode: PlaybackRequest.EpisodeInfo? = null): PrequeueStatus {
+    private suspend fun await(id: String, titleId: String, episode: PlaybackRequest.EpisodeInfo? = null): PrequeueStatus {
         val deadline = System.currentTimeMillis() + 180_000
         while (System.currentTimeMillis() < deadline) {
             val status = ApiClient.prequeueStatus(id)
@@ -208,12 +233,18 @@ internal class PrequeueResolver(
                     if (status.streamPath.isNullOrEmpty()) throw ApiError.NotReady("Stream resolved without a path")
                     return status
                 }
-                "failed", "expired" -> throw ApiError.NotReady(status.error ?: "No playable stream found")
+                "failed", "expired" -> throw ApiError.NotReady(failureMessage(titleId, status.error))
                 else -> describe(status).let { (s, d) -> progress(s, d) }
             }
             delay(750)
         }
         throw ApiError.NotReady("Timed out waiting for a stream")
+    }
+
+    /** The prequeue's error; when a quality preset ranked the title, says that nothing matched it. */
+    private fun failureMessage(titleId: String, error: String?): String {
+        QualityPresetPicks.activeName(titleId)?.let { return QualityPresetPicks.noMatchMessage(it) }
+        return error ?: "No playable stream found"
     }
 
     /** A friendly line for the prequeue's stage, plus the release being tried when there is one. */

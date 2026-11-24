@@ -44,6 +44,7 @@ import androidx.tv.material3.ListItem
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import com.strmr.tv.api.ApiClient
+import com.strmr.tv.api.ApiError
 import com.strmr.tv.api.DetailsTarget
 import com.strmr.tv.api.Episode
 import com.strmr.tv.api.SourceHealth
@@ -62,12 +63,16 @@ import com.strmr.tv.ui.library.LibraryVersionItem
  * debrid cache / usenet health badges (pending ones long-polled until they settle). Long press
  * on a result opens its track panel ([SourceTracks]); the tracks chosen there are remembered
  * for this visit and also apply when the result is selected directly. The movie's or episode's
- * library copies are listed first, as the Expo app does.
+ * library copies are listed first, as the Expo app does. When a quality preset ranks the title
+ * ([quality]), the header names it, each result carries its preset tags (quality, custom-format
+ * score), and the releases the preset rejected are listed, still playable, under a collapsed
+ * "Other qualities".
  */
 @Composable
 fun SourcePicker(
     title: DetailsTarget,
     episode: Episode?,
+    quality: QualityPresetState?,
     onPick: (SourceResult, ManualSourceTracks?) -> Unit,
     onDismiss: () -> Unit,
     libraryVersions: List<LibraryVersion> = emptyList(),
@@ -77,6 +82,9 @@ fun SourcePicker(
     var results by remember { mutableStateOf<List<SourceResult>>(emptyList()) }
     var loading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf<String?>(null) }
+    var note by remember { mutableStateOf<String?>(null) }
+    var showOther by remember { mutableStateOf(false) }
+    val sections = remember(results) { SourceSections.of(results) }
     val health = remember { mutableStateMapOf<Int, SourceHealth>() }
     val heading = episode?.let { "${title.name} · ${it.code}" } ?: title.name
     val first = remember { FocusRequester() }
@@ -91,10 +99,21 @@ fun SourcePicker(
         focusPlaced = runCatching { target.requestFocus() }.isSuccess
     }
 
-    LaunchedEffect(Unit) {
+    // A new preset pick searches again (the server ranks, and caches, per preset).
+    LaunchedEffect(quality?.revision) {
         val query = SourceSwitchRules.query(title, episode?.code)
+        loading = true
+        val preset = quality?.requested
+        val includeFiltered = quality?.presetRanked == true
         try {
-            results = ApiClient.searchSources(query, title, episode?.numbering)
+            results = try {
+                ApiClient.searchSources(query, title, episode?.numbering, preset, includeFiltered)
+            } catch (e: ApiError) {
+                // A preset the server no longer allows (400 / 403): search with its own choice.
+                if (preset == null || (e.statusCode != 400 && e.statusCode != 403)) throw e
+                note = "Quality preset unavailable: ${e.message}"
+                ApiClient.searchSources(query, title, episode?.numbering, includeFiltered = includeFiltered)
+            }
             results.forEach { r -> r.health?.let { health[r.index] = it } }
         } catch (e: Exception) {
             error = e.message
@@ -113,6 +132,17 @@ fun SourcePicker(
         health.filterValues { it.state == "pending" }.keys.forEach { health[it] = SourceHealth("unknown") }
     }
 
+    val row: @Composable (SourceResult, Boolean) -> Unit = { result, isFirst ->
+        SourceRow(
+            result, health[result.index], tracks.hasChoice(result),
+            if (isFirst) Modifier.focusRequester(first) else Modifier,
+            onLongClick = { tracks.open(result) },
+        ) {
+            onDismiss()
+            onPick(result, tracks.manualFor(result))
+        }
+    }
+
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
         Box(Modifier.fillMaxSize().background(BrandBackground), contentAlignment = Alignment.TopCenter) {
             LazyColumn(
@@ -123,9 +153,12 @@ fun SourcePicker(
                 item {
                     Column(Modifier.padding(bottom = 12.dp)) {
                         Text(heading, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
-                        if (!loading && error == null && results.isNotEmpty()) {
-                            Text(if (results.size == 1) "1 source" else "${results.size} sources", color = Color.White.copy(alpha = 0.6f))
+                        val n = sections.main.size
+                        if (!loading && error == null && n > 0) {
+                            Text(if (n == 1) "1 source" else "$n sources", color = Color.White.copy(alpha = 0.6f))
                         }
+                        sections.rankedBy?.let { Text("Ranked by: $it", color = Color.White.copy(alpha = 0.6f)) }
+                        note?.let { Text(it, color = Color.White.copy(alpha = 0.6f)) }
                     }
                 }
                 if (libraryVersions.isNotEmpty()) {
@@ -152,15 +185,23 @@ fun SourcePicker(
                         }
                     }
                     error != null -> item { Text(error!!, color = Color.White.copy(alpha = 0.6f)) }
-                    results.isEmpty() -> item { Text("No sources found", color = Color.White.copy(alpha = 0.6f)) }
-                    else -> items(results, key = { it.index }) { result ->
-                        SourceRow(
-                            result, health[result.index], tracks.hasChoice(result),
-                            if (result == results.first()) Modifier.focusRequester(first) else Modifier,
-                            onLongClick = { tracks.open(result) },
-                        ) {
-                            onDismiss()
-                            onPick(result, tracks.manualFor(result))
+                    sections.main.isEmpty() && sections.otherQualities.isEmpty() -> item { Text("No sources found", color = Color.White.copy(alpha = 0.6f)) }
+                    else -> {
+                        if (sections.main.isEmpty()) item { Text("No release matched the quality preset", color = Color.White.copy(alpha = 0.6f)) }
+                        val shown = sections.main + if (showOther) sections.otherQualities else emptyList()
+                        val firstShown = shown.firstOrNull()
+                        items(sections.main, key = { it.index }) { result -> row(result, result == firstShown) }
+                        if (sections.otherQualities.isNotEmpty()) {
+                            item(key = "other") {
+                                ListItem(
+                                    selected = false,
+                                    onClick = { showOther = !showOther },
+                                    headlineContent = { Text("Other qualities (${sections.otherQualities.size})", fontWeight = FontWeight.SemiBold) },
+                                    trailingContent = { Text(if (showOther) "Hide" else "Show") },
+                                    modifier = if (sections.main.isEmpty()) Modifier.focusRequester(first) else Modifier,
+                                )
+                            }
+                            if (showOther) items(sections.otherQualities, key = { it.index }) { result -> row(result, false) }
                         }
                     }
                 }
@@ -180,6 +221,7 @@ private fun SourceRow(result: SourceResult, health: SourceHealth?, tracksChosen:
     // Release name: the first line of the scraper's raw title when present.
     val release = (attrs["raw_title"] ?: result.title).lineSequence().firstOrNull() ?: result.title
     val badges = buildList {
+        addAll(SourceSections.tags(result))
         attrs["resolution"]?.takeIf { it.isNotEmpty() }?.let { add(if (it == "2160p") "4K" else it) }
         if (attrs["hasDV"] == "true") add("DV")
         attrs["hdr"]?.let { if (it.contains("HDR10+")) add("HDR10+") else if (it.contains("HDR")) add("HDR") }

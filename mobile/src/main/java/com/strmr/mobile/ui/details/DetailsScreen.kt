@@ -72,6 +72,7 @@ fun DetailsScreen(target: DetailsTarget, autoplay: Boolean) {
 
     LaunchedEffect(model) { PlaybackCoordinator.prewarm(target) }
     LaunchedEffect(model) { model.loadLibrary() }
+    LaunchedEffect(model) { if (!target.fromLibrary) model.quality.load() }
     LaunchedEffect(model) { if (!target.isMovie) SpoilerSettings.refresh() }
     DisposableEffect(trailer) { onDispose { trailer.release() } }
     // A title action taken elsewhere (a menu over this page, another page): show its new state.
