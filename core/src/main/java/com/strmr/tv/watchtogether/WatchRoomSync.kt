@@ -116,6 +116,7 @@ class WatchRoomSync private constructor(private val c: PlayerController, private
                     at, duration.takeIf { it > 0 }, room.revision, ep,
                 )
                 readinessReported = false
+                WatchTogetherSession.seedUsed(roomId)
             }
             if (room.waitingForReady && !readinessReported && loaded) {
                 room = ApiClient.setWatchRoomReady(profileId, roomId, true)
@@ -131,7 +132,9 @@ class WatchRoomSync private constructor(private val c: PlayerController, private
                     profileId, roomId, if (room.status == WatchRoomStatus.PAUSED) WatchRoomStatus.PAUSED else WatchRoomStatus.PLAYING,
                     launch.resumePosition, maxOf(room.duration, duration), room.revision, episodeForPost(),
                 )
+                WatchTogetherSession.seedUsed(roomId)
             }
+            if (first && launch.isHost) WatchTogetherSession.seedUsed(roomId)
             _room.value = room
             if (room.revision != lastRevision) {
                 lastRevision = room.revision

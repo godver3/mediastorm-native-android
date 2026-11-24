@@ -44,6 +44,14 @@ object WatchTogetherSession {
     /** The room the next player syncs with ([WatchRoomLaunch]). */
     @Volatile var launch: WatchRoomLaunch? = null
 
+    /**
+     * The host's resume point went into the room: a later player for the room (a source switch,
+     * a retry) plays the room's position instead of seeding the old resume again.
+     */
+    fun seedUsed(roomId: String) {
+        launch?.takeIf { it.roomId == roomId && it.resumePosition > 0 }?.let { launch = it.copy(resumePosition = 0.0) }
+    }
+
     private fun key(profileId: String) = "room.$profileId"
 
     private fun stored(profileId: String): ActiveWatchRoom? = prefs.getString(key(profileId), null)?.let {
