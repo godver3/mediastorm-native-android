@@ -263,6 +263,12 @@ object AppUpdater {
         val ready = state as? State.Ready ?: return
         if (installsOnLeave()) {
             AppLog.i("Update", "app left; installing ${ready.manifest.label}")
+            // The system stops the app while it installs (~20 s): say so, or reopening looks broken.
+            scope.launch {
+                runCatching {
+                    android.widget.Toast.makeText(App.context, "Updating MediaStorm… it will be back in a moment", android.widget.Toast.LENGTH_LONG).show()
+                }
+            }
             install()
         }
     }
