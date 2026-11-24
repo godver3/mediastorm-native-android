@@ -246,15 +246,15 @@ class WatchRoomSync private constructor(private val c: PlayerController, private
     }
 
     /**
-     * Host: once the stream is resolved, hands it to the room so web guests play the same file.
-     * Once; a 4xx (another source bound already) isn't retried, a network or server error is.
+     * Host: once the stream is resolved, hands it to the room so web guests play the same file,
+     * for the episode it plays (after announcing it: each episode is bound anew). Once per player; a 4xx (another source bound already) isn't retried, a network or server error is.
      */
     private suspend fun bindSource() {
         if (sourceBound || !launch.isHost) return
         val source = c.session.streamPath?.takeIf { !c.session.localFile } ?: return
         sourceBound = true
         try {
-            ApiClient.bindWatchPartySource(profileId, roomId, source, sourceParams())
+            ApiClient.bindWatchPartySource(profileId, roomId, source, sourceParams(), playingEpisode)
             AppLog.i(LOG, "bound the host's stream for web guests")
         } catch (e: CancellationException) {
             throw e

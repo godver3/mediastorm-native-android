@@ -116,6 +116,14 @@ class WatchRoomModelsTest {
         assertEquals(setOf("seasonNumber", "episodeNumber"), WatchRoomEpisode(1, 2, "", " ").body().keys)
     }
 
+    @Test fun externalSourceBodyNamesTheEpisode() {
+        val body = externalSourceBody("/webdav/x.mkv", mapOf("title" to "BB"), WatchRoomEpisode(2, 4, "e4"))
+        assertEquals(setOf("source", "params", "episode"), body.keys)
+        assertEquals("4", body["episode"]!!.jsonObject["episodeNumber"]!!.jsonPrimitive.content)
+        // A movie (or unknown episode): the server uses the room's.
+        assertEquals(setOf("source", "params"), externalSourceBody("/x", emptyMap(), null).keys)
+    }
+
     @Test fun decodesTheRoomEpisodeAndItsAbsence() {
         val room = ApiJson.decodeFromString<WatchRoom>(
             """{"id":"wr_1","itemId":"tvdb:series:1","episode":{"seasonNumber":1,"episodeNumber":4,"title":"Cancer Man"}}""",

@@ -99,13 +99,23 @@ suspend fun ApiClient.revokeExternalInvitation(profileId: String, roomId: String
 
 /**
  * Hands the host's resolved stream to the room so web guests play the same file. The server
- * keeps only [WatchRoomSourceParams.ALLOWED] params.
+ * keeps only [WatchSyncRules.SOURCE_PARAMS]. Each episode is bound anew (a host advance opens a
+ * new player, whose sync binds again); the same episode with another stream answers 409.
  */
-suspend fun ApiClient.bindWatchPartySource(profileId: String, roomId: String, source: String, params: Map<String, String>) {
-    sendRaw("POST", "${room(profileId, roomId)}/external-source", promptOnLock = false, body = buildJsonObject {
-        put("source", source)
-        putJsonObject("params") { params.forEach { (k, v) -> put(k, v) } }
-    })
+suspend fun ApiClient.bindWatchPartySource(
+    profileId: String, roomId: String, source: String, params: Map<String, String>, episode: WatchRoomEpisode? = null,
+) {
+    sendRaw("POST", "${room(profileId, roomId)}/external-source", promptOnLock = false, body = externalSourceBody(source, params, episode))
+}
+
+/**
+ * The `external-source` body. The source is bound per episode: [episode] (the host's) names
+ * which one; the server takes the room's current episode when it is left out.
+ */
+fun externalSourceBody(source: String, params: Map<String, String>, episode: WatchRoomEpisode?): JsonObject = buildJsonObject {
+    put("source", source)
+    putJsonObject("params") { params.forEach { (k, v) -> put(k, v) } }
+    episode?.let { put("episode", it.body()) }
 }
 
 /** The body of `POST watch-rooms`. */
