@@ -9,6 +9,32 @@ class WatchSyncRulesTest {
     private fun room(status: String = WatchRoomStatus.PLAYING, position: Double = 100.0, waiting: Boolean = false) =
         WatchRoom(id = "r", status = status, position = position, waitingForReady = waiting)
 
+    private fun waiting(rev: Long, ready: Boolean) = WatchRoom(
+        id = "r", status = WatchRoomStatus.PLAYING, waitingForReady = true, revision = rev,
+        members = listOf(WatchRoomMember("me", ready = ready, joined = true)),
+    )
+
+    @Test fun reportsReadyAgainAfterTheRoomResetsIt() {
+        // Ready at rev 1; the host's episode post (rev 2) reset it while this player plays that episode.
+        assertTrue(WatchSyncRules.reportsReady(waiting(2, false), "me", true, false, lastReadyRevision = 1, lastReadyAtMs = 0, nowMs = 5_000))
+        // Already ready, or reported for this revision, or within 2 s: no.
+        assertFalse(WatchSyncRules.reportsReady(waiting(2, true), "me", true, false, 1, 0, 5_000))
+        assertFalse(WatchSyncRules.reportsReady(waiting(2, false), "me", true, false, 2, 0, 5_000))
+        assertFalse(WatchSyncRules.reportsReady(waiting(3, false), "me", true, false, 2, 4_000, 5_000))
+        // Not loaded, switching, not waiting, not a member: no.
+        assertFalse(WatchSyncRules.reportsReady(waiting(2, false), "me", false, false, 1, 0, 5_000))
+        assertFalse(WatchSyncRules.reportsReady(waiting(2, false), "me", true, true, 1, 0, 5_000))
+        assertFalse(WatchSyncRules.reportsReady(waiting(2, false).copy(waitingForReady = false), "me", true, false, 1, 0, 5_000))
+        assertFalse(WatchSyncRules.reportsReady(waiting(2, false), "other", true, false, 1, 0, 5_000))
+        // The first report of a player.
+        assertTrue(WatchSyncRules.reportsReady(waiting(0, false), "me", true, false, Long.MIN_VALUE, 0, 5_000))
+    }
+
+    @Test fun noLocalPostsWhileWaitingForReady() {
+        assertFalse(WatchSyncRules.postsLocalChange(waitingForReady = true))
+        assertTrue(WatchSyncRules.postsLocalChange(waitingForReady = false))
+    }
+
     @Test fun pausedUnlessPlayingAndEveryoneReady() {
         assertFalse(WatchSyncRules.remotePaused(room()))
         assertTrue(WatchSyncRules.remotePaused(room(waiting = true)))

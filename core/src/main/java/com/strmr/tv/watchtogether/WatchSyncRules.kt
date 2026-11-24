@@ -49,6 +49,25 @@ object WatchSyncRules {
 
     const val PRESENCE_SHOW_MS = 8_000L
 
+    /**
+     * Report ready: the room waits for players, this member isn't ready (the server resets
+     * everyone's on an episode change, even when this player already plays it), the player has
+     * loaded and isn't switching episode. Once per revision, and at most every [READY_RETRY_MS].
+     */
+    fun reportsReady(
+        room: WatchRoom, profileId: String, loaded: Boolean, switching: Boolean,
+        lastReadyRevision: Long, lastReadyAtMs: Long, nowMs: Long,
+    ): Boolean {
+        if (!room.waitingForReady || !loaded || switching) return false
+        if (room.member(profileId)?.ready != false) return false
+        return room.revision != lastReadyRevision && nowMs - lastReadyAtMs >= READY_RETRY_MS
+    }
+
+    const val READY_RETRY_MS = 2_000L
+
+    /** Local play / pause / seek changes aren't posted while the room waits for everyone's player. */
+    fun postsLocalChange(waitingForReady: Boolean) = !waitingForReady
+
     /** The room wants the player paused: everyone isn't ready yet, or it isn't playing. */
     fun remotePaused(room: WatchRoom) = room.waitingForReady || room.status != WatchRoomStatus.PLAYING
 

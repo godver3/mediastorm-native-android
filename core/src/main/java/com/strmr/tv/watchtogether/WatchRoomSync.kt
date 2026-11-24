@@ -49,6 +49,9 @@ class WatchRoomSync private constructor(private val c: PlayerController, private
     private var local: LocalPlayback? = null
     private var readinessReported = false
     private var waitingForReady = false
+    /** The revision and time this player last reported ready ([WatchSyncRules.reportsReady]). */
+    private var lastReadyRevision = Long.MIN_VALUE
+    private var lastReadyAtMs = 0L
     private var ticks = 0
     private var heartbeatPosition: Double? = null
     private var sourceBound = false
@@ -118,10 +121,15 @@ class WatchRoomSync private constructor(private val c: PlayerController, private
                 readinessReported = false
                 WatchTogetherSession.seedUsed(roomId)
             }
-            if (room.waitingForReady && !readinessReported && loaded) {
+            val now = System.currentTimeMillis()
+            if (WatchSyncRules.reportsReady(room, profileId, loaded, _switching.value != null, lastReadyRevision, lastReadyAtMs, now)) {
+                // Again whenever the room resets readiness (the host announced an episode this
+                // player already plays): once per revision, at most every 2 s.
+                lastReadyRevision = room.revision
+                lastReadyAtMs = now
                 room = ApiClient.setWatchRoomReady(profileId, roomId, true)
                 readinessReported = true
-                AppLog.i(LOG, "player ready in room $roomId")
+                AppLog.i(LOG, "player ready in room $roomId (rev ${room.revision})")
             }
             waitingForReady = room.waitingForReady
             val first = lastRevision == -1L
@@ -207,9 +215,10 @@ class WatchRoomSync private constructor(private val c: PlayerController, private
         local = LocalPlayback(isPaused, at, now)
         if (!changed) return
         // Everyone isn't ready yet: the room keeps the player paused (a start that went ahead
-        // after a display-mode switch, say), and that isn't news for the room.
-        if (waitingForReady && !isPaused) {
-            player.playWhenReady = false
+        // after a display-mode switch, say), and no local change is news for the room (each
+        // post would be another revision while everyone loads).
+        if (!WatchSyncRules.postsLocalChange(waitingForReady)) {
+            if (!isPaused) player.playWhenReady = false
             local = LocalPlayback(true, at, now)
             return
         }
