@@ -137,6 +137,7 @@ class PlayerController(
 
     private val stallLog by lazy { StallLog(player) }
     private val healthLog: HealthLog
+    private val audioLog: AudioHealthLog
 
     private val listener = object : Player.Listener {
         override fun onIsPlayingChanged(playing: Boolean) {
@@ -290,6 +291,9 @@ class PlayerController(
         healthLog = HealthLog(context, player)
         player.addAnalyticsListener(healthLog)
         healthLog.start(scope)
+        audioLog = AudioHealthLog(context, player)
+        player.addAnalyticsListener(audioLog)
+        audioLog.start(scope)
         progress = ProgressReporter(player, session, scope) { autoSwitch.trigger(it) }
         recordingHls = session.growingRestart?.let { RecordingHls(player, scope, session.liveSessionId, it) }
         liveRetune = session.retuneLive?.let {
@@ -422,6 +426,8 @@ class PlayerController(
         stallLog.summary()
         healthLog.stop()
         player.removeAnalyticsListener(healthLog)
+        audioLog.stop()
+        player.removeAnalyticsListener(audioLog)
         player.removeListener(listener)
         player.removeListener(stallLog)
         player.release()
