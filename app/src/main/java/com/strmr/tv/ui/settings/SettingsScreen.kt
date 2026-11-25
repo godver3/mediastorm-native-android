@@ -122,6 +122,7 @@ private fun SettingsList(server: HttpUrl?, remote: Boolean, health: String?, che
         PickerDialog("Details Title Logo Size", options.map { it.label }, LogoSettings.detailsScale.ordinal,
                      onPick = { LogoSettings.setDetails(options[it]) }, onDismiss = { pickingDetailsLogoScale = false })
     }
+    var debugOpen by remember { mutableStateOf(false) }
     LazyColumn(
         // Clipped below the tab bar, so rows never scroll under it.
         modifier.fillMaxHeight().clipVertically(),
@@ -352,6 +353,8 @@ private fun SettingsList(server: HttpUrl?, remote: Boolean, health: String?, che
                 },
             )
         }
+        item { Header("Debug") }
+        playbackDebugRows(debugOpen) { debugOpen = !debugOpen }
     }
 }
 

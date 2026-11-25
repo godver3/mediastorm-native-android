@@ -18,6 +18,8 @@ import androidx.media3.exoplayer.audio.AudioTrackAudioOutputProvider
 import androidx.media3.exoplayer.audio.DefaultAudioSink
 import androidx.media3.exoplayer.audio.ForwardingAudioOutputProvider
 import com.strmr.tv.app.AppLog
+import com.strmr.tv.ui.settings.PlaybackDebugFlag
+import com.strmr.tv.ui.settings.PlaybackDebugFlags
 import java.util.concurrent.CopyOnWriteArrayList
 
 /**
@@ -104,11 +106,15 @@ class PassthroughGuard(context: Context, delegate: AudioOutputProvider) : Forwar
         /** [DefaultRenderersFactory] whose audio sink goes through [PassthroughGuard], with the current stream's [AudioOffset]. */
         fun renderersFactory(context: Context): DefaultRenderersFactory = object : DefaultRenderersFactory(context) {
             override fun buildAudioSink(context: Context, enableFloatOutput: Boolean, enableAudioOutputPlaybackParams: Boolean): AudioSink {
-                return AudioOffsetSink(DefaultAudioSink.Builder(context)
+                val builder = DefaultAudioSink.Builder(context)
                     .setEnableFloatOutput(enableFloatOutput)
                     .setEnableAudioOutputPlaybackParameters(enableAudioOutputPlaybackParams)
-                    .setAudioOutputProvider(PassthroughGuard(context, AudioTrackAudioOutputProvider.Builder(context).build()))
-                    .build()) { AudioOffsetStore.currentMs }
+                // Each wrapper can be left out (Settings › Playback Debugging).
+                if (PlaybackDebugFlags.on(PlaybackDebugFlag.PASSTHROUGH_GUARD)) {
+                    builder.setAudioOutputProvider(PassthroughGuard(context, AudioTrackAudioOutputProvider.Builder(context).build()))
+                }
+                val sink = builder.build()
+                return if (PlaybackDebugFlags.on(PlaybackDebugFlag.AUDIO_OFFSET)) AudioOffsetSink(sink) { AudioOffsetStore.currentMs } else sink
             }
         }
     }

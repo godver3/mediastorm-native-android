@@ -25,6 +25,8 @@ import com.strmr.tv.api.mediaHeaders
 import com.strmr.tv.app.AppLog
 import com.strmr.tv.live.LiveCatchups
 import com.strmr.tv.player.dv7.Dv7Playback
+import com.strmr.tv.ui.settings.PlaybackDebugFlag
+import com.strmr.tv.ui.settings.PlaybackDebugFlags
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.cancel
@@ -136,8 +138,9 @@ class PlayerController(
         private set
 
     private val stallLog by lazy { StallLog(player) }
-    private val healthLog: HealthLog
-    private val audioLog: AudioHealthLog
+    /** Null when switched off (Settings › Playback Debugging). */
+    private val healthLog: HealthLog?
+    private val audioLog: AudioHealthLog?
 
     private val listener = object : Player.Listener {
         override fun onIsPlayingChanged(playing: Boolean) {
@@ -285,15 +288,17 @@ class PlayerController(
             .setHandleAudioBecomingNoisy(true)
             .setSeekBackIncrementMs(10_000)
             .setSeekForwardIncrementMs(10_000)
+            .setVideoChangeFrameRateStrategy(
+                if (PlaybackDebugFlags.on(PlaybackDebugFlag.SURFACE_FRAME_RATE)) C.VIDEO_CHANGE_FRAME_RATE_STRATEGY_ONLY_IF_SEAMLESS
+                else C.VIDEO_CHANGE_FRAME_RATE_STRATEGY_OFF,
+            )
             .build()
         player.addListener(listener)
-        player.addListener(stallLog)
-        healthLog = HealthLog(context, player)
-        player.addAnalyticsListener(healthLog)
-        healthLog.start(scope)
-        audioLog = AudioHealthLog(context, player)
-        player.addAnalyticsListener(audioLog)
-        audioLog.start(scope)
+        if (PlaybackDebugFlags.on(PlaybackDebugFlag.STALL_LOG)) player.addListener(stallLog)
+        healthLog = if (PlaybackDebugFlags.on(PlaybackDebugFlag.HEALTH_LOG)) HealthLog(context, player) else null
+        healthLog?.let { player.addAnalyticsListener(it); it.start(scope) }
+        audioLog = if (PlaybackDebugFlags.on(PlaybackDebugFlag.AUDIO_LOG)) AudioHealthLog(context, player) else null
+        audioLog?.let { player.addAnalyticsListener(it); it.start(scope) }
         progress = ProgressReporter(player, session, scope) { autoSwitch.trigger(it) }
         recordingHls = session.growingRestart?.let { RecordingHls(player, scope, session.liveSessionId, it) }
         liveRetune = session.retuneLive?.let {
@@ -424,10 +429,8 @@ class PlayerController(
         catchup?.release()
         liveRetune?.release()
         stallLog.summary()
-        healthLog.stop()
-        player.removeAnalyticsListener(healthLog)
-        audioLog.stop()
-        player.removeAnalyticsListener(audioLog)
+        healthLog?.let { it.stop(); player.removeAnalyticsListener(it) }
+        audioLog?.let { it.stop(); player.removeAnalyticsListener(it) }
         player.removeListener(listener)
         player.removeListener(stallLog)
         player.release()

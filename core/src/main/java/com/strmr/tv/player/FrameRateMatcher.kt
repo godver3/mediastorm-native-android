@@ -8,6 +8,8 @@ import android.view.Window
 import androidx.media3.common.Format
 import androidx.media3.exoplayer.video.VideoFrameMetadataListener
 import com.strmr.tv.app.AppLog
+import com.strmr.tv.ui.settings.PlaybackDebugFlag
+import com.strmr.tv.ui.settings.PlaybackDebugFlags
 
 /**
  * Android TV's counterpart of tvOS Match Content (frame rate), as the Expo app does it: the
@@ -144,7 +146,7 @@ class FrameRateMatcher(
             return releaseStart(null)
         }
         AppLog.i("FrameRate", "content ${"%.3f".format(fps)} fps ($source) → mode ${best.id} ${"%.3f".format(best.refreshRate)} Hz")
-        if (heldStart == null) {
+        if (heldStart == null && PlaybackDebugFlags.on(PlaybackDebugFlag.SWITCH_PAUSE)) {
             heldStart = pauseForSwitch()
             main.postDelayed(startTimeout, START_HOLD_MAX_MS)
         }

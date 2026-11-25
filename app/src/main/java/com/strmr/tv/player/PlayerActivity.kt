@@ -28,6 +28,8 @@ import com.strmr.tv.ui.live.multiscreen.MultiscreenHandover
 import com.strmr.tv.ui.live.multiscreen.MultiscreenLauncher
 import com.strmr.tv.ui.StrmrTheme
 import com.strmr.tv.ui.settings.MatchFrameRateSettings
+import com.strmr.tv.ui.settings.PlaybackDebugFlag
+import com.strmr.tv.ui.settings.PlaybackDebugFlags
 import kotlinx.coroutines.launch
 
 /**
@@ -39,6 +41,9 @@ import kotlinx.coroutines.launch
 class PlayerActivity : ComponentActivity() {
     private var controller: PlayerController? = null
     private var frameRate: FrameRateMatcher? = null
+    /** In place of [frameRate] with Playback Debugging › Old Frame Rate Matcher. */
+    private var legacyFrameRate: LegacyFrameRateMatcher? = null
+    private var timingLog: PlaybackTimingLog? = null
     /** Add Screen: the channel the multiscreen opens with once this player has let go. */
     private var handover: MultiscreenHandover? = null
 
@@ -56,13 +61,18 @@ class PlayerActivity : ComponentActivity() {
             onSwitch = { controller?.displayModeSwitched() },
             pauseForSwitch = { controller?.pauseForSwitch() ?: {} },
         )
-        frameRate = matcher
-        val c = PlayerController(this, session, startGate = { start -> matcher.holdStart(session.sourceFrameRate, start) }) { format ->
-            matcher.onVideoFormat(format, session.sourceFrameRate)
+        val legacy = if (PlaybackDebugFlags.on(PlaybackDebugFlag.LEGACY_MATCHER)) LegacyFrameRateMatcher(window, currentDisplay()) else null
+        legacyFrameRate = legacy
+        frameRate = matcher.takeIf { legacy == null }
+        val gate: ((() -> Unit) -> Unit)? = { start: () -> Unit -> matcher.holdStart(session.sourceFrameRate, start) }
+            .takeIf { legacy == null && PlaybackDebugFlags.on(PlaybackDebugFlag.START_HOLD) }
+        val c = PlayerController(this, session, startGate = gate) { format ->
+            legacy?.match(format.frameRate) ?: matcher.onVideoFormat(format, session.sourceFrameRate)
         }
         controller = c
-        c.player.setVideoFrameMetadataListener(matcher)
-        matchFrameRate(session, matcher)
+        val listensToFrames = legacy == null && PlaybackDebugFlags.on(PlaybackDebugFlag.FRAME_LISTENER)
+        timingLog = PlaybackTimingLog(window, currentDisplay(), c.player, matcher.takeIf { listensToFrames }).also { it.start() }
+        if (legacy == null) matchFrameRate(session, matcher)
         setContent {
             StrmrTheme {
                 val ended by c.ended.collectAsState()
@@ -147,9 +157,12 @@ class PlayerActivity : ComponentActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
+        timingLog?.stop()
+        timingLog = null
         val saving = controller?.release()
         controller = null
         frameRate?.reset()
+        legacyFrameRate?.reset()
         PlaybackCoordinator.playerOpen = false
         if (isFinishing) PlaybackCoordinator.playerClosed(saving)
         // After the release, so a direct stream's provider connection is closed first.
