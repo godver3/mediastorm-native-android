@@ -1,5 +1,6 @@
 package com.strmr.tv.library
 
+import com.strmr.tv.api.LibraryCopyRule
 import com.strmr.tv.api.LibraryGroup
 import com.strmr.tv.api.LibraryItem
 import com.strmr.tv.api.LibraryMatch
@@ -85,6 +86,17 @@ data class LibraryVersions(val movie: List<LibraryVersion>, val episodes: Map<Ke
         if (season == null || episode == null) movie else episodes[Key(season, episode)].orEmpty()
 
     fun best(season: Int?, episode: Int?): LibraryVersion? = versions(season, episode).firstOrNull()
+
+    /** The copies a rule lets Play take (REMOTE: Plex and Jellyfin ones); null when none are left. */
+    fun allowedBy(rule: LibraryCopyRule): LibraryVersions? {
+        val keep: (LibraryVersion) -> Boolean = when (rule) {
+            LibraryCopyRule.ALL -> return this
+            LibraryCopyRule.NONE -> return null
+            LibraryCopyRule.REMOTE -> { v -> v.source != LibrarySource.LOCAL }
+        }
+        return LibraryVersions(movie.filter(keep), episodes.mapValues { (_, v) -> v.filter(keep) }.filterValues { it.isNotEmpty() })
+            .takeUnless { it.isEmpty }
+    }
 
     companion object {
         fun of(matches: List<LibraryMatch>) = build(matches.map { it.group to it.libraryName })

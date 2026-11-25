@@ -126,6 +126,15 @@ class DetailsModel(val target: DetailsTarget) {
     /** The copies of what the primary button plays. */
     val primaryVersions: List<LibraryVersion> get() = libraryVersions(if (target.isMovie) null else primaryEpisode)
 
+    /**
+     * The copies Play may take for a movie or episode: [libraryVersions] unless another preset is
+     * picked for the title (then none, Play streams). Versions still lists them all.
+     */
+    fun playableVersions(episode: Episode?): List<LibraryVersion> {
+        val all = library?.allowedBy(quality.libraryRule) ?: return emptyList()
+        return if (episode == null) { if (target.isMovie) all.movie else emptyList() } else all.versions(episode.seasonNumber, episode.episodeNumber)
+    }
+
     /** Specials last, so the season chips open on real seasons. */
     val visibleSeasons: List<Season> get() = seasons.filter { it.number > 0 } + seasons.filter { it.number == 0 }
     val currentSeason: Season? get() = visibleSeasons.firstOrNull { it.number == selectedSeason } ?: visibleSeasons.firstOrNull()
@@ -264,15 +273,25 @@ class DetailsModel(val target: DetailsTarget) {
 
     /**
      * Play, through the library when it has the movie or episode: one copy plays, several are
-     * listed to pick from. A press while the lookup is still running waits for it, so a library
-     * title never starts a search by mistake.
+     * listed to pick from. A press while the lookups (library, presets) are still running waits
+     * for them, so a library title never starts a search by mistake, nor plays its copy when
+     * another preset is picked for it.
      */
     fun play(episode: Episode?, start: StartPoint?, picks: PrequeuePick? = null) {
-        if (libraryLookup.isCompleted) return playOrAsk(episode, start, picks, library)
-        MainScope().launch { playOrAsk(episode, start, picks, withTimeoutOrNull(8_000) { libraryLookup.await() }) }
+        if (libraryLookup.isCompleted && (library == null || quality.choices != null || target.fromLibrary)) {
+            return playOrAsk(episode, start, picks, library)
+        }
+        MainScope().launch {
+            val found = withTimeoutOrNull(8_000) { libraryLookup.await() }
+            if (found != null) quality.awaitLoaded()
+            playOrAsk(episode, start, picks, found)
+        }
     }
 
-    private fun playOrAsk(episode: Episode?, start: StartPoint?, picks: PrequeuePick?, versions: LibraryVersions?) {
+    private fun playOrAsk(episode: Episode?, start: StartPoint?, picks: PrequeuePick?, found: LibraryVersions?) {
+        // The copies Play may take: none once another preset is picked for the title (the server
+        // decides the same for every other client).
+        val versions = found?.allowedBy(quality.libraryRule)
         val copies = if (episode == null && !target.isMovie) emptyList()
                      else versions?.versions(episode?.seasonNumber, episode?.episodeNumber).orEmpty()
         if (copies.size > 1) {
@@ -284,7 +303,7 @@ class DetailsModel(val target: DetailsTarget) {
 
     /** Stream Instead, from the list Play opened: the prequeue, with no library copy for this title or the episodes after it. */
     fun streamInstead(choice: PlayChoice) =
-        PlaybackCoordinator.play(request(choice.episode, choice.start).copy(library = null), choice.picks)
+        PlaybackCoordinator.play(request(choice.episode, choice.start).copy(library = null, noLibraryCopy = true), choice.picks)
 
     /** A copy picked in Versions. */
     fun playVersion(version: LibraryVersion, episode: Episode?, start: StartPoint?) =
@@ -304,7 +323,7 @@ class DetailsModel(val target: DetailsTarget) {
             backdrops = listOfNotNull(episode?.image?.url) + art,
             logoUrl = title?.logo?.url ?: target.logoUrl,
             following = episode?.let { airedEpisodes(it) }.orEmpty(),
-            library = library,
+            library = library?.allowedBy(quality.libraryRule),
         )
     }
 

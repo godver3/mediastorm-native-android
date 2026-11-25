@@ -65,7 +65,7 @@ fun DetailsPresentations(state: DetailsPageState, warm: WarmPrequeue?, scope: Co
     }
     model.playChoice?.let { choice ->
         LibraryVersionsSheet(
-            state.heading(choice.episode), model.libraryVersions(choice.episode),
+            state.heading(choice.episode), model.playableVersions(choice.episode),
             onPick = { model.playVersion(it, choice.episode, choice.start) }, onDismiss = { model.playChoice = null },
             onStream = { model.streamInstead(choice) },
         )

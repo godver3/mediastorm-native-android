@@ -34,6 +34,8 @@ data class QualityPresetChoices(
     /** What it would use without a remembered preset: picking it clears the title's memory. */
     val movieDefault: QualityPresetSelection = QualityPresetSelection(),
     val seriesDefault: QualityPresetSelection = QualityPresetSelection(),
+    /** Titles a local library has play from there unless another preset is picked (server setting). */
+    val preferLibraryCopies: Boolean? = null,
 ) {
     /** The presets offered for a movie or a series, in the server's order. */
     fun offeredFor(isMovie: Boolean): List<QualityPreset> {
@@ -48,9 +50,30 @@ data class QualityPresetChoices(
         /** The ID the server uses for its simple ranking (no preset). */
         const val SIMPLE = "simple"
 
+        /** "Library copy": the title plays from a local library (offered only when one has it). */
+        const val LIBRARY = "local"
+
         /** The offered preset a selection names ("simple" for the simple ranking). */
         fun idOf(s: QualityPresetSelection?): String = s?.presetId?.ifEmpty { null } ?: SIMPLE
     }
+}
+
+/** Which library copies Play takes. */
+enum class LibraryCopyRule { ALL, REMOTE, NONE }
+
+/**
+ * Which library copies Play takes, as the server decides for every other client: all of them when
+ * "Library copy" is picked or is the title's choice (and without presets, as before); none when
+ * another preset is picked for the title; with the server setting off only Plex and Jellyfin
+ * copies, which the setting does not cover.
+ */
+fun libraryCopyRule(choices: QualityPresetChoices?, isMovie: Boolean, picked: String?): LibraryCopyRule {
+    val c = choices ?: return LibraryCopyRule.ALL
+    if (c.preferLibraryCopies == false) return LibraryCopyRule.REMOTE
+    // Without a local copy the choice is not offered: picks are about ranking.
+    if (c.offeredFor(isMovie).none { it.id == QualityPresetChoices.LIBRARY }) return LibraryCopyRule.ALL
+    if (picked != null) return if (picked == QualityPresetChoices.LIBRARY) LibraryCopyRule.ALL else LibraryCopyRule.NONE
+    return if (c.current(isMovie).presetId == QualityPresetChoices.LIBRARY) LibraryCopyRule.ALL else LibraryCopyRule.NONE
 }
 
 /**
@@ -70,4 +93,5 @@ suspend fun ApiClient.qualityPresets(t: DetailsTarget): QualityPresetChoices? = 
         t.year?.let { put("year", it.toString()) }
     }
     send<QualityPresetChoices>("GET", "/api/quality-presets", q)
-}.getOrNull()?.takeIf { it.offeredFor(t.isMovie).isNotEmpty() }
+    // Kept without offered presets too when it switches library copies off (libraryCopyRule).
+}.getOrNull()?.takeIf { it.offeredFor(t.isMovie).isNotEmpty() || it.preferLibraryCopies == false }

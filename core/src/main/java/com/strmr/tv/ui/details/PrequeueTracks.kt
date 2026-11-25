@@ -47,7 +47,7 @@ class PrequeueTracks(
 
     /** The page's prequeue while it resolves, or once it lists tracks for the episode Play targets; null hides the button. */
     fun visible(warm: WarmPrequeue?): WarmPrequeue? {
-        if (model.primaryVersions.isNotEmpty()) return null // Play uses a library copy
+        if (model.playableVersions(if (model.target.isMovie) null else episode()).isNotEmpty()) return null // Play uses a library copy
         if (warm == null || warm.titleId != model.target.titleId || warm.profile != ApiClient.profileId) return null
         return when (warm.phase) {
             WarmPrequeue.Phase.RESOLVING -> warm

@@ -34,7 +34,7 @@ import com.strmr.tv.ui.AppIcons
  */
 @Composable
 fun DetailsSourceLine(state: DetailsPageState, warm: WarmPrequeue?) {
-    val versions = state.model.libraryVersions(state.activeEpisode)
+    val versions = state.model.playableVersions(state.activeEpisode)
     val best = versions.firstOrNull()
     if (best != null) {
         val text = (if (versions.size > 1) "${versions.size} versions · " else "") + "${best.source.label} · ${best.quality}"

@@ -6,9 +6,13 @@ import androidx.compose.runtime.setValue
 import com.strmr.tv.api.ApiClient
 import com.strmr.tv.api.DetailsTarget
 import com.strmr.tv.api.QualityPreset
+import com.strmr.tv.api.LibraryCopyRule
 import com.strmr.tv.api.QualityPresetChoices
+import com.strmr.tv.api.libraryCopyRule
 import com.strmr.tv.api.qualityPresets
 import com.strmr.tv.player.PlaybackCoordinator
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.withTimeoutOrNull
 import java.util.concurrent.ConcurrentHashMap
 
 /**
@@ -48,11 +52,29 @@ class QualityPresetState(private val target: DetailsTarget) {
     var revision by mutableStateOf(0)
         private set
     private var pickedHere by mutableStateOf(QualityPresetPicks.picked(target.titleId))
+    /** Completes once the presets have been asked for the first time (whatever the answer). */
+    private val firstLoad = CompletableDeferred<Unit>()
 
     suspend fun load() {
-        choices = ApiClient.qualityPresets(target)
-        publishActive()
+        try {
+            choices = ApiClient.qualityPresets(target)
+            publishActive()
+        } finally {
+            firstLoad.complete(Unit)
+        }
     }
+
+    /**
+     * Waits, up to [timeoutMs], for the first load (Play asks [libraryRule] first). A library
+     * title (no presets asked) does not wait.
+     */
+    suspend fun awaitLoaded(timeoutMs: Long = 5_000) {
+        if (target.fromLibrary || firstLoad.isCompleted) return
+        withTimeoutOrNull(timeoutMs) { firstLoad.await() }
+    }
+
+    /** Which library copies Play takes (see [libraryCopyRule]); while the presets load, all of them. */
+    val libraryRule: LibraryCopyRule get() = libraryCopyRule(choices, target.isMovie, pickedHere)
 
     val offered: List<QualityPreset> get() = offered(choices, target.isMovie)
     val visible: Boolean get() = offered.isNotEmpty()
@@ -62,8 +84,12 @@ class QualityPresetState(private val target: DetailsTarget) {
     val label: String get() = label(activeName)
     /** The pick to send with a search (null: let the server choose). */
     val requested: String? get() = pickedHere
-    /** A preset (not the simple ranking) ranks this title: Choose Source lists Other qualities. */
-    val presetRanked: Boolean get() = visible && activeId != null && activeId != QualityPresetChoices.SIMPLE
+    /**
+     * A preset (not the simple ranking, nor "Library copy", which ranks nothing) ranks this title:
+     * Choose Source lists Other qualities.
+     */
+    val presetRanked: Boolean get() = visible && activeId != null && activeId != QualityPresetChoices.SIMPLE &&
+        activeId != QualityPresetChoices.LIBRARY
 
     /**
      * Picks [id] for the title: the warm prequeue is cancelled and restarted with it (the server
