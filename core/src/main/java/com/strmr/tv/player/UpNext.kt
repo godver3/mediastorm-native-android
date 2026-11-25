@@ -40,6 +40,7 @@ class UpNext(
     private var autoSkip = false
     private var introAutoSkip = false
     private var recapAutoSkip = false
+    private var commercialAutoSkip = false
     private val skipped = mutableSetOf<SkipSegment>()
     private var countdown: Int? = null
     private var countdownTickMs = 0L
@@ -52,6 +53,7 @@ class UpNext(
             autoSkip = settings.creditsAutoSkip
             introAutoSkip = settings.introAutoSkip
             recapAutoSkip = settings.recapAutoSkip
+            commercialAutoSkip = settings.commercialAutoSkip
             // Reading credits on screen only feeds the next-episode countdown.
             if (nextEpisode != null && request.isEpisode && CreditsDetectionSettings.enabled(settings.creditsDetection) && !advanced && !cancelled) {
                 detector = CreditsDetector { start -> segments.detectedCredits(start, durationSec) }
@@ -67,7 +69,7 @@ class UpNext(
         if (!segments.hasOutro) detector?.tick(positionMs / 1000.0, durationSec, surface())
         val found = segments.active(positionMs).takeIf { it != dismissed }
         val automatic = found?.let {
-            ProfileSkipPolicy.enabled(it.type, introAutoSkip, recapAutoSkip)
+            ProfileSkipPolicy.enabled(it.type, introAutoSkip, recapAutoSkip, commercialAutoSkip)
         } == true
         if (playing && automatic && skipped.add(found)) {
             dismissed = found

@@ -77,7 +77,7 @@ suspend fun ApiClient.previewThumbnailsEnabled(): Boolean =
 /** One skippable range, in seconds. */
 @Serializable
 data class SkipSegment(
-    /** `intro`, `recap`, `outro` or `preview`. */
+    /** `intro`, `recap`, `outro`, `preview`, or `commercial` (a recording's break, from comskip). */
     val type: String,
     val start: Double,
     val end: Double,

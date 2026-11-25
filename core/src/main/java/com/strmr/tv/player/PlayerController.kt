@@ -125,7 +125,8 @@ class PlayerController(
     var catchup: CatchupJoin? = null
         private set
     // Watch Together: Up Next and next-episode autoplay are the host's; guests follow its episode.
-    val upNext: UpNext? = if (session.reportsProgress && !session.isLive &&
+    // Recordings report no progress but get the skip pill for their commercial breaks.
+    val upNext: UpNext? = if ((session.reportsProgress || request.recordingId != null) && !session.isLive &&
         com.strmr.tv.watchtogether.WatchRoomSync.launchFor(session).let { com.strmr.tv.watchtogether.WatchSyncRules.upNextAllowed(it != null, it?.isHost == true) }) {
         UpNext(request, session.streamPath?.takeIf { !session.localFile }, scope, { videoSurface }, onSkip = { seekTo(it) }) { next ->
             report(ended = true)

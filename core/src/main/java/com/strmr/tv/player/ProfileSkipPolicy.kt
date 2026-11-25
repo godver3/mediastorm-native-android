@@ -6,10 +6,11 @@ package com.strmr.tv.player
  * movie they play out.
  */
 internal object ProfileSkipPolicy {
-    fun enabled(type: String, intro: Boolean, recap: Boolean): Boolean =
+    fun enabled(type: String, intro: Boolean, recap: Boolean, commercial: Boolean = false): Boolean =
         when (type) {
             "intro" -> intro
             "recap" -> recap
+            "commercial" -> commercial
             else -> false
         }
 }

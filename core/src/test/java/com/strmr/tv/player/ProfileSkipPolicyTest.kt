@@ -11,6 +11,12 @@ class ProfileSkipPolicyTest {
         assertTrue(ProfileSkipPolicy.enabled("recap", intro = false, recap = true))
     }
 
+    @Test fun `a recording's commercial breaks follow their own profile choice`() {
+        assertTrue(ProfileSkipPolicy.enabled("commercial", intro = false, recap = false, commercial = true))
+        assertFalse(ProfileSkipPolicy.enabled("commercial", intro = true, recap = true, commercial = false))
+        assertFalse(ProfileSkipPolicy.enabled("intro", intro = false, recap = false, commercial = true))
+    }
+
     @Test fun `credits never jump by themselves`() {
         assertFalse(ProfileSkipPolicy.enabled("outro", intro = true, recap = true))
     }

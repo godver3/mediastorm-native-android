@@ -157,7 +157,7 @@ object PlaybackCoordinator {
     fun playRecording(recording: Recording) {
         if (_resolving.value != null) return
         val title = RecordingRules.title(recording)
-        val request = PlaybackRequest(DetailsTarget(recording.id, title, isMovie = true))
+        val request = PlaybackRequest(DetailsTarget(recording.id, title, isMovie = true), recordingId = recording.id)
         AppLog.i("Recordings", "play ${recording.id} status=${recording.status}")
         if (RecordingRules.isRecording(recording)) {
             begin(request, "Starting…", live = { _, _ -> ApiClient.startRecordingHls(recording, title) }, growing = true,

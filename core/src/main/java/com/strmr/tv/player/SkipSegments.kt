@@ -6,15 +6,18 @@ import com.strmr.tv.api.VideoChapter
 import com.strmr.tv.api.skipSegments
 import com.strmr.tv.api.videoChapters
 import com.strmr.tv.app.AppLog
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
 
 /**
- * Intro / recap / credits ranges for the playing item from `POST /api/video/segments`, which
+ * Intro / recap / credits ranges for the playing item from `POST /api/video/segments` (for a
+ * recording, its commercial breaks instead), which
  * merges IntroDB, SkipDB and chapter names server-side. Posted once the duration is known.
  * ExoPlayer doesn't surface container chapters, so when an episode comes back without credits
  * the file's chapters are read from the server's probe ([videoChapters]) and posted again, as
@@ -25,6 +28,9 @@ class SkipSegments(private val request: PlaybackRequest, private val streamPath:
     private var segments: List<SkipSegment> = emptyList()
     private var detected: SkipSegment? = null
     private var postedDuration = 0L
+    /** A recording's breaks: asked at this duration (s; -1: not yet, or the request failed). */
+    private var recordingAskedAt = -1L
+    private var recordingHasBreaks = false
     private var job: Job? = null
 
     /** Whether the server's segments include credits (on-device detection then stays off). */
@@ -34,6 +40,32 @@ class SkipSegments(private val request: PlaybackRequest, private val streamPath:
         if (durationMs <= 0 || durationMs / 1000 == postedDuration) return
         postedDuration = durationMs / 1000
         val duration = durationMs / 1000.0
+        request.recordingId?.let { id ->
+            // A recording: its commercial breaks, which comskip marks once it is done. A growing
+            // recording's duration changes with every playlist reload, so while it has none they are
+            // asked again only every 15 minutes it grew; a failed request is tried twice more.
+            val seconds = durationMs / 1000
+            if (recordingHasBreaks || job?.isActive == true || (recordingAskedAt >= 0 && seconds < recordingAskedAt + 900)) return
+            recordingAskedAt = seconds
+            job = scope.launch {
+                val body = buildJsonObject { put("recordingId", id); put("duration", duration) }
+                repeat(3) { attempt ->
+                    if (attempt > 0) delay(10_000)
+                    val found = try {
+                        ApiClient.skipSegments(body)
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (_: Exception) {
+                        return@repeat
+                    }
+                    segments = found.filter { it.type == "commercial" && it.end > it.start }.sortedBy { it.start }
+                    recordingHasBreaks = segments.isNotEmpty()
+                    if (recordingHasBreaks) AppLog.i(TAG, "recording $id: ${segments.size} commercial breaks")
+                    return@launch
+                }
+            }
+            return
+        }
         job?.cancel()
         job = scope.launch {
             runCatching { ApiClient.skipSegments(body(duration, emptyList())) }.onSuccess { segments = it }
@@ -99,6 +131,7 @@ sealed interface SkipAction {
             "intro" -> "Skip Intro"
             "recap" -> "Skip Recap"
             "outro" -> "Skip Credits"
+            "commercial" -> "Skip Commercial"
             else -> "Skip Preview"
         }
     }

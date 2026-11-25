@@ -70,6 +70,8 @@ data class PlaybackSettings(
     val creditsAutoSkip: Boolean = false,
     val introAutoSkip: Boolean = false,
     val recapAutoSkip: Boolean = false,
+    /** A recording's commercial breaks are skipped by themselves (`playback.commercialAutoSkip`). */
+    val commercialAutoSkip: Boolean = false,
     /** Episodes with no known credits are read on screen for them (`playback.creditsDetectionEnabled`). */
     val creditsDetection: Boolean = false,
     /** The Expo app's subtitle style (`playback.subtitle*`) under this device's; null from servers that send none. */
@@ -93,6 +95,7 @@ private data class PlaybackFields(
     val creditsAutoSkip: Boolean? = null,
     val introAutoSkip: Boolean? = null,
     val recapAutoSkip: Boolean? = null,
+    val commercialAutoSkip: Boolean? = null,
     /** The older name of `creditsAutoSkip`. */
     val creditsDetection: Boolean? = null,
     val creditsDetectionEnabled: Boolean? = null,
@@ -145,6 +148,7 @@ suspend fun ApiClient.playbackSettings(): PlaybackSettings = coroutineScope {
         creditsAutoSkip = d?.autoSkip ?: u?.autoSkip ?: false,
         introAutoSkip = u?.introAutoSkip ?: false,
         recapAutoSkip = u?.recapAutoSkip ?: false,
+        commercialAutoSkip = u?.commercialAutoSkip ?: false,
         creditsDetection = d?.creditsDetectionEnabled ?: u?.creditsDetectionEnabled ?: false,
         subtitleStyle = d?.style?.mergedOver(u?.style) ?: u?.style,
         preferredSubtitleLanguage = (d?.preferredSubtitleLanguage?.ifEmpty { null } ?: u?.preferredSubtitleLanguage)?.ifEmpty { null },

@@ -37,6 +37,8 @@ data class PlaybackRequest(
     val autoSwitchCount: Int = 0,
     /** The playback speed picked in the player, carried into Up Next and a source switch (a new playback starts at 1x). */
     val speed: Float = 1f,
+    /** A Live TV recording (its server ID): its commercial breaks can be skipped. */
+    val recordingId: String? = null,
 ) {
     data class EpisodeInfo(
         val season: Int,
