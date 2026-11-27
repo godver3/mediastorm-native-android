@@ -48,16 +48,17 @@ import com.strmr.tv.ui.details.DetailsModel
 
 /**
  * The rows under the episodes, in the Expo order: Part of {collection} (movies, release order),
- * More Like This and Cast, opening details or a person page. A kids profile's cards don't open
+ * More Like This and Cast, opening details or a person page. Kids profiles get only the collection row, whose cards don't open
  * anything, as on the TV and iPhone apps.
  */
 fun LazyListScope.relatedRows(model: DetailsModel) {
+    val kids = AppSession.profile.value?.isKidsProfile == true
     model.title?.collection?.let { collection ->
         if (model.collectionMovies.isNotEmpty()) item(key = "collection") { PosterRow("Part of ${collection.name}", model.collectionMovies) }
     }
-    if (model.similar.isNotEmpty()) item(key = "similar") { PosterRow("More Like This", model.similar.take(20)) }
+    if (!kids && model.similar.isNotEmpty()) item(key = "similar") { PosterRow("More Like This", model.similar.take(20)) }
     val cast = model.cast
-    if (cast.isNotEmpty()) item(key = "cast") { CastRow(cast) }
+    if (!kids && cast.isNotEmpty()) item(key = "cast") { CastRow(cast) }
 }
 
 @Composable

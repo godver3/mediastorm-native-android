@@ -59,8 +59,8 @@ private val CARD_WIDTH = 100.dp
 
 /**
  * The rows under the episodes, in the Expo TV order: Part of {collection} (movies, release
- * order), More Like This and Cast, opening details or a person page. A kids profile's cards
- * don't open anything, as on tvOS.
+ * order), More Like This and Cast, opening details or a person page. Kids profiles get only the
+ * collection row, and its cards don't open anything, as on tvOS.
  */
 @Composable
 fun RelatedRows(model: DetailsModel, modifier: Modifier = Modifier) {
@@ -82,9 +82,9 @@ fun RelatedRows(model: DetailsModel, modifier: Modifier = Modifier) {
         model.title?.collection?.let { collection ->
             if (model.collectionMovies.isNotEmpty()) RelatedRow("Part of ${collection.name}") { posters(model.collectionMovies) }
         }
-        if (model.similar.isNotEmpty()) RelatedRow("More Like This") { posters(model.similar.take(20)) }
+        if (opens && model.similar.isNotEmpty()) RelatedRow("More Like This") { posters(model.similar.take(20)) }
         val cast = model.cast
-        if (cast.isNotEmpty()) RelatedRow("Cast") {
+        if (opens && cast.isNotEmpty()) RelatedRow("Cast") {
             items(cast, key = { it.id }) { member ->
                 CastCard(member) { if (opens) navigator.open(Page.Person(PersonRef(member.id, member.name, member.profileUrl))) }
             }
