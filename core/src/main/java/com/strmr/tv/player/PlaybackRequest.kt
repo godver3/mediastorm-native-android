@@ -39,6 +39,8 @@ data class PlaybackRequest(
     val speed: Float = 1f,
     /** A Live TV recording (its server ID): its commercial breaks can be skipped. */
     val recordingId: String? = null,
+    /** Stream Instead: the server must not answer with a local library copy either. */
+    val noLibraryCopy: Boolean = false,
 ) {
     data class EpisodeInfo(
         val season: Int,

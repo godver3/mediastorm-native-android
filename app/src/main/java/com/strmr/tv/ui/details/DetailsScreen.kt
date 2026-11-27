@@ -271,7 +271,7 @@ fun DetailsScreen(target: DetailsTarget, openWatchState: Boolean = false, autopl
     }
     model.playChoice?.let { choice ->
         LibraryVersionsDialog(
-            choice.episode?.let { "${target.name} · ${it.code}" } ?: target.name, model.libraryVersions(choice.episode),
+            choice.episode?.let { "${target.name} · ${it.code}" } ?: target.name, model.playableVersions(choice.episode),
             onPick = { model.playVersion(it, choice.episode, choice.start) }, onDismiss = { model.playChoice = null },
             onStream = { model.streamInstead(choice) },
         )

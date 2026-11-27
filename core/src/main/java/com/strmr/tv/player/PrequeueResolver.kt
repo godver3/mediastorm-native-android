@@ -4,6 +4,7 @@ import com.strmr.tv.api.ApiClient
 import com.strmr.tv.api.ApiError
 import com.strmr.tv.api.DetailsTarget
 import com.strmr.tv.api.PrequeueStatus
+import com.strmr.tv.api.QualityPresetChoices
 import com.strmr.tv.api.playbackSettings
 import com.strmr.tv.api.prequeueStatus
 import com.strmr.tv.api.startPrequeue
@@ -49,7 +50,9 @@ internal class PrequeueResolver(
     private var warmGen = 0
     private var warmJob: Job? = null
 
-    private class Warmed(val titleId: String, val profile: String, val started: Long, var prequeue: Deferred<String?>?)
+    /** [noLibraryCopy]: told to stream (Stream Instead); only a request for the same adopts it. */
+    private class Warmed(val titleId: String, val profile: String, val started: Long, var prequeue: Deferred<String?>?,
+                         val noLibraryCopy: Boolean = false)
 
     /**
      * Starts resolving what `target`'s details page would play as soon as it opens, so Play
@@ -72,14 +75,18 @@ internal class PrequeueResolver(
     fun prewarm(target: DetailsTarget) {
         if (target.fromLibrary) return // Play uses the library's copy
         val profile = ApiClient.profileId
-        warmed?.let { if (it.titleId == target.titleId && it.profile == profile && System.currentTimeMillis() - it.started < 600_000) return }
+        // A prefetch told to stream (Stream Instead) is not this page's warm-up.
+        warmed?.let { if (it.titleId == target.titleId && it.profile == profile && !it.noLibraryCopy && System.currentTimeMillis() - it.started < 600_000) return }
         // No episode or start point: the server targets the series' next-up episode.
         val body = body(PlaybackRequest(target))
         _warm.value = WarmPrequeue(target.titleId, profile, WarmPrequeue.Phase.RESOLVING)
         val gen = ++warmGen
         warmJob?.cancel()
         val task = scope.async {
-            val id = if (runCatching { ApiClient.playbackSettings().prequeueOnOpen }.getOrDefault(false)) {
+            // "Library copy" picked: the prequeue tells the server (it plays the file, no search),
+            // even with prequeue on open off, or the server would keep the old pick.
+            val libraryPicked = QualityPresetPicks.picked(target.titleId) == QualityPresetChoices.LIBRARY
+            val id = if (libraryPicked || runCatching { ApiClient.playbackSettings().prequeueOnOpen }.getOrDefault(false)) {
                 runCatching { ApiClient.startPrequeue(body).prequeueId }.getOrNull()
             } else null
             if (gen != warmGen) return@async id
@@ -156,14 +163,15 @@ internal class PrequeueResolver(
             if (!ApiClient.playbackSettings().prequeueOnOpen) return@async null
             runCatching { ApiClient.startPrequeue(body).prequeueId }.getOrNull()
         }
-        warmed = Warmed(request.title.titleId, profile, System.currentTimeMillis(), task)
+        warmed = Warmed(request.title.titleId, profile, System.currentTimeMillis(), task, request.noLibraryCopy)
     }
 
     /** The ready prequeue for `request`: a warm-up for it when one is usable, else a fresh one. */
     suspend fun resolve(request: PlaybackRequest): PrequeueStatus {
         val w = warmed
         val pendingPrequeue = w?.prequeue
-        if (w != null && w.titleId == request.title.titleId && w.profile == ApiClient.profileId && pendingPrequeue != null) {
+        if (w != null && w.titleId == request.title.titleId && w.profile == ApiClient.profileId &&
+            w.noLibraryCopy == request.noLibraryCopy && pendingPrequeue != null) {
             w.prequeue = null
             pendingPrequeue.await()?.let { id ->
                 try {
@@ -214,6 +222,7 @@ internal class PrequeueResolver(
         request.startPosition?.let { put("startOffset", it) }
         // A quality preset picked on details: the server ranks with it and remembers it.
         QualityPresetPicks.picked(t.titleId)?.let { put("qualityPreset", it) }
+        if (request.noLibraryCopy) put("noLibraryCopy", true)
     }
 
     /**

@@ -226,18 +226,21 @@ internal fun FocusCaption(text: String) {
 
 /**
  * The library copies of what Play plays (icon-only, like Choose Source); focused, its caption names
- * the copy Play uses. Hidden when the libraries have none.
+ * the copy Play uses (or that Play streams, with another preset picked). Hidden when the libraries
+ * have none.
  */
 @Composable
 private fun VersionsButton(model: DetailsModel, onVersions: () -> Unit) {
     val versions = model.primaryVersions
-    val best = versions.firstOrNull() ?: return
+    if (versions.isEmpty()) return
+    val best = model.playableVersions(if (model.target.isMovie) null else model.primaryEpisode).firstOrNull()
     var focused by remember { mutableStateOf(false) }
     Box(contentAlignment = Alignment.BottomCenter) {
         IconButton(onClick = onVersions, modifier = Modifier.onFocusChanged { focused = it.isFocused }) {
             Icon(AppIcons.Library, contentDescription = "Versions")
         }
-        if (focused) FocusCaption((if (versions.size > 1) "${versions.size} versions · " else "") + "${best.source.label} · ${best.quality}")
+        if (focused) FocusCaption((if (versions.size > 1) "${versions.size} versions · " else "") +
+            (best?.let { "${it.source.label} · ${it.quality}" } ?: "Play streams"))
     }
 }
 
