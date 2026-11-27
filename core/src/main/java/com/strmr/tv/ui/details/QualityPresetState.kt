@@ -45,7 +45,7 @@ object QualityPresetPicks {
  * The details page's Quality action: the presets offered for the title (none hides it
  * everywhere: row, More, Customize Buttons), which one is active, and picking one.
  */
-class QualityPresetState(private val target: DetailsTarget) {
+class QualityPresetState(private val target: DetailsTarget, private val episode: () -> com.strmr.tv.api.Episode? = { null }) {
     var choices by mutableStateOf<QualityPresetChoices?>(null)
         private set
     /** Bumped on a pick, so Choose Source searches again instead of reusing its results. */
@@ -55,9 +55,10 @@ class QualityPresetState(private val target: DetailsTarget) {
     /** Completes once the presets have been asked for the first time (whatever the answer). */
     private val firstLoad = CompletableDeferred<Unit>()
 
+    /** Asks for the presets; again once the series' Play episode is known (it decides "Library copy"). */
     suspend fun load() {
         try {
-            choices = ApiClient.qualityPresets(target)
+            choices = ApiClient.qualityPresets(target, episode())
             publishActive()
         } finally {
             firstLoad.complete(Unit)

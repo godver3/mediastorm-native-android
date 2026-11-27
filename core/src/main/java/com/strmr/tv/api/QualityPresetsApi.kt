@@ -80,7 +80,7 @@ fun libraryCopyRule(choices: QualityPresetChoices?, isMovie: Boolean, picked: St
  * The quality presets offered for a title on this profile and device, or null when the server
  * has none to offer (no presets, or a server without them: errors count as none).
  */
-suspend fun ApiClient.qualityPresets(t: DetailsTarget): QualityPresetChoices? = runCatching {
+suspend fun ApiClient.qualityPresets(t: DetailsTarget, episode: Episode? = null): QualityPresetChoices? = runCatching {
     val q = buildMap {
         put("userId", profileId)
         put("clientId", Config.clientId)
@@ -91,6 +91,12 @@ suspend fun ApiClient.qualityPresets(t: DetailsTarget): QualityPresetChoices? = 
         t.tmdbId?.let { put("tmdbId", it) }
         t.tvdbId?.let { put("tvdbId", it) }
         t.year?.let { put("year", it.toString()) }
+        // The episode Play targets: the server offers "Library copy" only when a library has it.
+        if (!t.isMovie && episode != null) {
+            put("season", episode.seasonNumber.toString())
+            put("episode", episode.episodeNumber.toString())
+            episode.absoluteEpisodeNumber?.let { put("absolute", it.toString()) }
+        }
     }
     send<QualityPresetChoices>("GET", "/api/quality-presets", q)
     // Kept without offered presets too when it switches library copies off (libraryCopyRule).

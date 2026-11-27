@@ -63,6 +63,7 @@ class SkipSegments(private val request: PlaybackRequest, private val streamPath:
                     if (recordingHasBreaks) AppLog.i(TAG, "recording $id: ${segments.size} commercial breaks")
                     return@launch
                 }
+                recordingAskedAt = -1 // all three failed: ask again on the next duration change
             }
             return
         }

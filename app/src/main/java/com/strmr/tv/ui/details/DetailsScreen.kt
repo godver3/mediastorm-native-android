@@ -112,7 +112,7 @@ fun DetailsScreen(target: DetailsTarget, openWatchState: Boolean = false, autopl
         }
     }
     LaunchedEffect(model) { model.loadLibrary() }
-    LaunchedEffect(model) { if (!target.fromLibrary) model.quality.load() }
+    LaunchedEffect(model, model.primaryEpisode) { if (!target.fromLibrary) model.quality.load() }
     LaunchedEffect(model) { if (!target.isMovie) SpoilerSettings.refresh() }
     LaunchedEffect(model) { runCatching { DetailsInfo.refresh() } }
     // A title action taken elsewhere (a menu over this page, another page): show its new state.

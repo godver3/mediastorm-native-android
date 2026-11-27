@@ -110,7 +110,7 @@ class DetailsModel(val target: DetailsTarget) {
     }
 
     /** The Quality action: the presets offered for the title and the active one. */
-    val quality = QualityPresetState(target)
+    val quality = QualityPresetState(target) { primaryEpisode }
 
     /** Play found several copies: the details page lists them to pick from (null: no question). */
     var playChoice by mutableStateOf<PlayChoice?>(null)
