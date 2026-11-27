@@ -60,12 +60,12 @@ private val CARD_WIDTH = 100.dp
 /**
  * The rows under the episodes, in the Expo TV order: Part of {collection} (movies, release
  * order), More Like This and Cast, opening details or a person page. Kids profiles get only the
- * collection row, and its cards don't open anything, as on tvOS.
+ * collection row, as on tvOS.
  */
 @Composable
 fun RelatedRows(model: DetailsModel, modifier: Modifier = Modifier) {
     val profile by AppSession.profile.collectAsState()
-    val opens = profile?.isKidsProfile != true
+    val kids = profile?.isKidsProfile == true
     val navigator = LocalNavigator.current
     val scope = rememberCoroutineScope()
     var menuFor by remember { mutableStateOf<HomeCard?>(null) }
@@ -74,7 +74,7 @@ fun RelatedRows(model: DetailsModel, modifier: Modifier = Modifier) {
     fun LazyListScope.posters(titles: List<Title>) = items(titles, key = { it.id }) { title ->
         val card = HomeCard.from(title)
         Box(Modifier.width(CARD_WIDTH)) {
-            PosterCard(card, onClick = { if (opens) card.target?.let(navigator::openDetails) }, onLongClick = { if (opens) menuFor = card })
+            PosterCard(card, onClick = { card.target?.let(navigator::openDetails) }, onLongClick = { menuFor = card })
         }
     }
 
@@ -82,11 +82,11 @@ fun RelatedRows(model: DetailsModel, modifier: Modifier = Modifier) {
         model.title?.collection?.let { collection ->
             if (model.collectionMovies.isNotEmpty()) RelatedRow("Part of ${collection.name}") { posters(model.collectionMovies) }
         }
-        if (opens && model.similar.isNotEmpty()) RelatedRow("More Like This") { posters(model.similar.take(20)) }
+        if (!kids && model.similar.isNotEmpty()) RelatedRow("More Like This") { posters(model.similar.take(20)) }
         val cast = model.cast
-        if (opens && cast.isNotEmpty()) RelatedRow("Cast") {
+        if (!kids && cast.isNotEmpty()) RelatedRow("Cast") {
             items(cast, key = { it.id }) { member ->
-                CastCard(member) { if (opens) navigator.open(Page.Person(PersonRef(member.id, member.name, member.profileUrl))) }
+                CastCard(member) { navigator.open(Page.Person(PersonRef(member.id, member.name, member.profileUrl))) }
             }
         }
     }

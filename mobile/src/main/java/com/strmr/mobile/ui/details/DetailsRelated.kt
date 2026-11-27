@@ -20,8 +20,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -48,8 +46,7 @@ import com.strmr.tv.ui.details.DetailsModel
 
 /**
  * The rows under the episodes, in the Expo order: Part of {collection} (movies, release order),
- * More Like This and Cast, opening details or a person page. Kids profiles get only the collection row, whose cards don't open
- * anything, as on the TV and iPhone apps.
+ * More Like This and Cast, opening details or a person page. Kids profiles get only the collection row, as on the TV and iPhone apps.
  */
 fun LazyListScope.relatedRows(model: DetailsModel) {
     val kids = AppSession.profile.value?.isKidsProfile == true
@@ -59,12 +56,6 @@ fun LazyListScope.relatedRows(model: DetailsModel) {
     if (!kids && model.similar.isNotEmpty()) item(key = "similar") { PosterRow("More Like This", model.similar.take(20)) }
     val cast = model.cast
     if (!kids && cast.isNotEmpty()) item(key = "cast") { CastRow(cast) }
-}
-
-@Composable
-private fun opensRelated(): Boolean {
-    val profile by AppSession.profile.collectAsState()
-    return profile?.isKidsProfile != true
 }
 
 @Composable
@@ -78,7 +69,6 @@ private fun RelatedHeading(text: String) {
 @Composable
 private fun PosterRow(heading: String, titles: List<Title>) {
     val navigator = LocalNavigator.current
-    val opens = opensRelated()
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         RelatedHeading(heading)
         LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -86,8 +76,8 @@ private fun PosterRow(heading: String, titles: List<Title>) {
                 val card = HomeCard.from(title)
                 PosterCard(
                     card, 116.dp,
-                    onClick = { if (opens) card.target?.let { navigator.openDetails(it) } },
-                    onLongClick = if (opens) { { TitleMenu.show(card) } } else null,
+                    onClick = { card.target?.let { navigator.openDetails(it) } },
+                    onLongClick = { TitleMenu.show(card) },
                 )
             }
         }
@@ -97,14 +87,13 @@ private fun PosterRow(heading: String, titles: List<Title>) {
 @Composable
 private fun CastRow(cast: List<CastMember>) {
     val navigator = LocalNavigator.current
-    val opens = opensRelated()
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         RelatedHeading("Cast")
         LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             items(cast, key = { it.id }) { member ->
                 Column(
                     Modifier.width(92.dp).clip(MaterialTheme.shapes.medium)
-                        .clickable(enabled = opens) { navigator.push(Route.Person(PersonRef(member.id, member.name, member.profileUrl))) }
+                        .clickable { navigator.push(Route.Person(PersonRef(member.id, member.name, member.profileUrl))) }
                         .padding(vertical = 4.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(6.dp),
