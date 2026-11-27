@@ -89,8 +89,10 @@ data class PlaybackRequest(
         get() {
             val next = following.firstOrNull() ?: return null
             val art = listOfNotNull(next.imageUrl) + backdrops.filter { it != episode?.imageUrl && it != next.imageUrl }
-            // It plays its own library copy, if it has one.
-            return copy(episode = next, start = null, following = following.drop(1), backdrops = art, libraryVersion = null)
+            // It plays its own library copy, if it has one. Auto Switch starts over: its tries and
+            // its switch limit belong to one episode, not the run.
+            return copy(episode = next, start = null, following = following.drop(1), backdrops = art, libraryVersion = null,
+                        autoSwitchTried = emptySet(), autoSwitchCount = 0)
         }
 
     val displayTitle: String get() = episode?.let { "${title.name} · ${it.code}" } ?: title.name

@@ -20,6 +20,16 @@ class SourceSwitchTest {
         assertEquals(StartPoint.Seconds(0.0), SourceSwitchRules.resumeAt(movie, -5).start)
     }
 
+    @Test fun nextEpisodeStartsAutoSwitchOver() {
+        val show = DetailsTarget("tmdb:tv:1", "Show", isMovie = false)
+        val switched = PlaybackRequest(show, episode = PlaybackRequest.EpisodeInfo(1, 1),
+                                       following = listOf(PlaybackRequest.EpisodeInfo(1, 2)))
+            .copy(autoSwitchTried = setOf("show.s01e01.bad"), autoSwitchCount = AutoSwitch.LIMIT)
+        val next = switched.nextEpisode!!
+        assertEquals(0, next.autoSwitchCount)
+        assertTrue(next.autoSwitchTried.isEmpty())
+    }
+
     @Test fun currentSourceMatchesByReleaseName() {
         val name = "The.Matrix.1999.1080p.BluRay.x264-GRP"
         assertTrue(SourceSwitchRules.isCurrent(name, null, "$name.mkv"))
